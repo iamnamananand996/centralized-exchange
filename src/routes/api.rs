@@ -5,4 +5,5 @@ pub fn configure_routes() -> actix_web::Scope {
     web::scope("")
         .route("/", web::get().to(index))
         .route("/health", web::get().to(health_check))
+        .service(crate::routes::auth::configure_auth_routes())
 } 

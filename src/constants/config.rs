@@ -8,3 +8,8 @@ pub fn get_server_address() -> String {
     env::var("SERVER_ADDRESS")
         .unwrap_or_else(|_| "127.0.0.1:8080".to_string())
 } 
+
+pub fn get_jwt_secret() -> String {
+    env::var("JWT_SECRET")
+        .unwrap_or_else(|_| "your-secret-key".to_string())
+}

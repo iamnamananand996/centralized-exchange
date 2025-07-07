@@ -1,12 +1,17 @@
 use actix_web::{web, App, HttpServer};
 use dotenv::dotenv;
-use sea_orm::{Database, DatabaseConnection};
+use migration::sea_orm::{Database, DatabaseConnection};
+
+use migration::MigratorTrait;
 
 mod constants;
 mod handlers;
 mod routes;
 mod types;
 mod utils;
+
+// Import the migration module
+use migration::Migrator;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -20,6 +25,13 @@ async fn main() -> std::io::Result<()> {
     let db: DatabaseConnection = Database::connect(&database_url)
         .await
         .expect("Failed to connect to database");
+
+    // Run database migrations
+    println!("🔄 Running database migrations...");
+    Migrator::up(&db, None)
+        .await
+        .expect("Failed to run database migrations");
+    println!("✅ Database migrations completed successfully");
 
     let server_address = constants::config::get_server_address();
     println!("🚀 Starting Centralized Exchange API server...");
