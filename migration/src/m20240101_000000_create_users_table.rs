@@ -14,7 +14,7 @@ impl MigrationTrait for Migration {
                     .col(pk_auto(Users::Id))
                     .col(string_len(Users::Username, 50).unique_key().not_null())
                     .col(string_len(Users::Email, 255).unique_key().not_null())
-                    .col(string_len(Users::Phone, 20).unique_key().null())
+                    .col(string_len(Users::Phone, 20).null())
                     .col(string_len(Users::PasswordHash, 255).not_null())
                     .col(string_len(Users::FullName, 100).null())
                     .col(decimal_len(Users::WalletBalance, 10, 2).default(0.00))

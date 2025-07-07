@@ -1,5 +1,5 @@
 use actix_web::{HttpResponse, Result};
-use crate::types::ApiResponse;
+use crate::types::response::ApiResponse;
 
 pub async fn health_check() -> Result<HttpResponse> {
     let response = ApiResponse {

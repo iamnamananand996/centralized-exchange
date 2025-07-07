@@ -7,4 +7,5 @@ pub fn configure_routes() -> actix_web::Scope {
         .route("/health", web::get().to(health_check))
         .service(crate::routes::auth::configure_auth_routes())
         .service(crate::routes::user::configure_user_routes())
+        .service(crate::routes::transaction::configure_transaction_routes())
 } 
