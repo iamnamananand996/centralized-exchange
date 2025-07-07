@@ -6,6 +6,7 @@ use migration::MigratorTrait;
 
 mod constants;
 mod handlers;
+mod middleware;
 mod routes;
 mod types;
 mod utils;

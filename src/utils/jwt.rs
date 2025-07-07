@@ -35,4 +35,9 @@ pub fn validate_jwt_token(token: &str) -> Result<Claims, JwtError> {
     )?;
     
     Ok(token_data.claims)
+}
+
+pub fn verify_jwt_token(token: &str) -> Result<String, JwtError> {
+    let claims = validate_jwt_token(token)?;
+    Ok(claims.sub)
 } 
