@@ -3,3 +3,4 @@ pub mod auth;
 pub mod user;
 pub mod transaction;
 pub mod event;
+pub mod event_option;

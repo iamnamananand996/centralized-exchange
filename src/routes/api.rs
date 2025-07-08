@@ -9,4 +9,5 @@ pub fn configure_routes() -> actix_web::Scope {
         .service(crate::routes::user::configure_user_routes())
         .service(crate::routes::transaction::configure_transaction_routes())
         .service(crate::routes::event::configure_event_routes())
+        .service(crate::routes::event_option::configure_event_option_routes())
 } 
