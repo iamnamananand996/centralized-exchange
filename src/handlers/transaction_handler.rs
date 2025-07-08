@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 use rust_decimal::Decimal as RustDecimal;
+use crate::utils::pagination::{PaginationQuery, PaginationInfo, PaginatedResponse};
 
 #[derive(Deserialize)]
 pub struct DepositRequest {
@@ -20,11 +21,7 @@ pub struct WithdrawRequest {
     pub amount: f64,
 }
 
-#[derive(Deserialize)]
-pub struct PaginationQuery {
-    pub page: Option<u64>,
-    pub limit: Option<u64>,
-}
+
 
 #[derive(Serialize)]
 pub struct TransactionResponse {
@@ -39,19 +36,9 @@ pub struct TransactionResponse {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Serialize)]
-pub struct PaginatedTransactionsResponse {
-    pub transactions: Vec<TransactionResponse>,
-    pub pagination: PaginationInfo,
-}
 
-#[derive(Serialize)]
-pub struct PaginationInfo {
-    pub current_page: u64,
-    pub total_pages: u64,
-    pub total_items: u64,
-    pub items_per_page: u64,
-}
+
+
 
 pub async fn deposit_money(
     db: web::Data<DatabaseConnection>,
@@ -283,9 +270,9 @@ pub async fn get_transaction_history(
         actix_web::error::ErrorBadRequest("Invalid user ID")
     })?;
 
-    let page = query.page.unwrap_or(1);
-    let limit = query.limit.unwrap_or(10).min(100); // Max 100 items per page
-    let offset = (page - 1) * limit;
+    let page = query.get_page();
+    let limit = query.get_limit();
+    let offset = query.get_offset();
 
     // Get total count
     let total_count = transaction::Entity::find()
@@ -296,8 +283,6 @@ pub async fn get_transaction_history(
             log::error!("Database error: {}", e);
             actix_web::error::ErrorInternalServerError("Database error occurred")
         })?;
-
-    let total_pages = (total_count as f64 / limit as f64).ceil() as u64;
 
     // Get transactions with pagination
     let transactions = transaction::Entity::find()
@@ -327,21 +312,13 @@ pub async fn get_transaction_history(
         })
         .collect();
 
-    let pagination_info = PaginationInfo {
-        current_page: page,
-        total_pages,
-        total_items: total_count,
-        items_per_page: limit,
-    };
-
-    let response = PaginatedTransactionsResponse {
-        transactions: transaction_responses,
-        pagination: pagination_info,
-    };
+    let pagination_info = PaginationInfo::new(page, total_count, limit);
+    let response = PaginatedResponse::new(transaction_responses, pagination_info);
 
     Ok(HttpResponse::Ok().json(json!({
         "message": "Transaction history retrieved successfully".to_string(),
         "status": "success",
-        "data": response
+        "data": response.data,
+        "pagination": response.pagination
     })))
 }
