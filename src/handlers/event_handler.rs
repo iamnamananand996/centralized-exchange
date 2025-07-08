@@ -1,6 +1,6 @@
 use actix_web::{web, Error, HttpResponse, Result};
 use chrono::{DateTime, Utc};
-use entity::events;
+use entity::{events, event_options};
 use sea_orm::{
     prelude::Decimal, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
     QueryOrder, QuerySelect, Set, PaginatorTrait,
@@ -41,6 +41,27 @@ pub struct ListEventsQuery {
 }
 
 #[derive(Serialize)]
+pub struct OptionResponse {
+    pub id: i32,
+    pub option_text: String,
+    pub current_price: Decimal,
+    pub total_backing: Decimal,
+    pub is_winning_option: Option<bool>,
+}
+
+impl From<event_options::Model> for OptionResponse {
+    fn from(option: event_options::Model) -> Self {
+        Self {
+            id: option.id,
+            option_text: option.option_text,
+            current_price: option.current_price,
+            total_backing: option.total_backing,
+            is_winning_option: option.is_winning_option,
+        }
+    }
+}
+
+#[derive(Serialize)]
 pub struct EventResponse {
     pub id: i32,
     pub title: String,
@@ -59,10 +80,11 @@ pub struct EventResponse {
     pub resolved_at: Option<chrono::NaiveDateTime>,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
+    pub options: Vec<OptionResponse>,
 }
 
-impl From<events::Model> for EventResponse {
-    fn from(event: events::Model) -> Self {
+impl From<(events::Model, Vec<event_options::Model>)> for EventResponse {
+    fn from((event, options): (events::Model, Vec<event_options::Model>)) -> Self {
         Self {
             id: event.id,
             title: event.title,
@@ -81,6 +103,7 @@ impl From<events::Model> for EventResponse {
             resolved_at: if event.resolved_at == chrono::NaiveDateTime::default() { None } else { Some(event.resolved_at) },
             created_at: event.created_at,
             updated_at: event.updated_at,
+            options: options.into_iter().map(OptionResponse::from).collect(),
         }
     }
 }
@@ -129,25 +152,17 @@ pub async fn create_event(
         actix_web::error::ErrorInternalServerError("Failed to create event")
     })?;
 
-    let event_response = json!({
-        "id": event.id,
-        "title": event.title,
-        "description": event.description,
-        "category": event.category,
-        "status": event.status,
-        "end_time": event.end_time,
-        "min_bet_amount": event.min_bet_amount,
-        "max_bet_amount": event.max_bet_amount,
-        "total_volume": event.total_volume,
-        "image_url": event.image_url,
-        "created_by": event.created_by,
-        "resolved_by": if event.resolved_by == 0 { serde_json::Value::Null } else { json!(event.resolved_by) },
-        "winning_option_id": if event.winning_option_id == 0 { serde_json::Value::Null } else { json!(event.winning_option_id) },
-        "resolution_note": event.resolution_note,
-        "resolved_at": event.resolved_at,
-        "created_at": event.created_at,
-        "updated_at": event.updated_at,
-    });
+    // Fetch options for the event (will be empty for new events)
+    let options = event_options::Entity::find()
+        .filter(event_options::Column::EventId.eq(event.id))
+        .all(db.get_ref())
+        .await
+        .map_err(|e| {
+            log::error!("Database error: {}", e);
+            actix_web::error::ErrorInternalServerError("Database error occurred")
+        })?;
+
+    let event_response = EventResponse::from((event, options));
 
     Ok(HttpResponse::Created().json(json!({
         "message": "Event created successfully",
@@ -251,25 +266,17 @@ pub async fn update_event(
         actix_web::error::ErrorInternalServerError("Failed to update event")
     })?;
 
-    let event_response = json!({
-        "id": updated_event.id,
-        "title": updated_event.title,
-        "description": updated_event.description,
-        "category": updated_event.category,
-        "status": updated_event.status,
-        "end_time": updated_event.end_time,
-        "min_bet_amount": updated_event.min_bet_amount,
-        "max_bet_amount": updated_event.max_bet_amount,
-        "total_volume": updated_event.total_volume,
-        "image_url": updated_event.image_url,
-        "created_by": updated_event.created_by,
-        "resolved_by": if updated_event.resolved_by == requester_id { serde_json::Value::Null } else { json!(updated_event.resolved_by) },
-        "winning_option_id": if updated_event.winning_option_id == 0 { serde_json::Value::Null } else { json!(updated_event.winning_option_id) },
-        "resolution_note": updated_event.resolution_note,
-        "resolved_at": updated_event.resolved_at,
-        "created_at": updated_event.created_at,
-        "updated_at": updated_event.updated_at,
-    });
+    // Fetch options for the updated event
+    let options = event_options::Entity::find()
+        .filter(event_options::Column::EventId.eq(updated_event.id))
+        .all(db.get_ref())
+        .await
+        .map_err(|e| {
+            log::error!("Database error: {}", e);
+            actix_web::error::ErrorInternalServerError("Database error occurred")
+        })?;
+
+    let event_response = EventResponse::from((updated_event, options));
 
     Ok(HttpResponse::Ok().json(json!({
         "message": "Event updated successfully",
@@ -318,10 +325,20 @@ pub async fn list_events(
             actix_web::error::ErrorInternalServerError("Database error occurred")
         })?;
 
-    let events_response: Vec<EventResponse> = events
-        .into_iter()
-        .map(EventResponse::from)
-        .collect();
+    // Fetch options for all events
+    let mut events_response: Vec<EventResponse> = Vec::new();
+    for event in events {
+        let options = event_options::Entity::find()
+            .filter(event_options::Column::EventId.eq(event.id))
+            .all(db.get_ref())
+            .await
+            .map_err(|e| {
+                log::error!("Database error: {}", e);
+                actix_web::error::ErrorInternalServerError("Database error occurred")
+            })?;
+        
+        events_response.push(EventResponse::from((event, options)));
+    }
 
     let pagination_info = PaginationInfo::new(page, total_count, limit);
     let response = PaginatedResponse::new(events_response, pagination_info);
@@ -356,25 +373,16 @@ pub async fn get_event(
         }
     };
 
-    let event_response = json!({
-        "id": event.id,
-        "title": event.title,
-        "description": event.description,
-        "category": event.category,
-        "status": event.status,
-        "end_time": event.end_time,
-        "min_bet_amount": event.min_bet_amount,
-        "max_bet_amount": event.max_bet_amount,
-        "total_volume": event.total_volume,
-        "image_url": event.image_url,
-        "created_by": event.created_by,
-        "resolved_by": if event.resolved_by == 0 { serde_json::Value::Null } else { json!(event.resolved_by) },
-        "winning_option_id": if event.winning_option_id == 0 { serde_json::Value::Null } else { json!(event.winning_option_id) },
-        "resolution_note": event.resolution_note,
-        "resolved_at": event.resolved_at,
-        "created_at": event.created_at,
-        "updated_at": event.updated_at,
-    });
+    let options = event_options::Entity::find()
+        .filter(event_options::Column::EventId.eq(event.id))
+        .all(db.get_ref())
+        .await
+        .map_err(|e| {
+            log::error!("Database error: {}", e);
+            actix_web::error::ErrorInternalServerError("Database error occurred")
+        })?;
+
+    let event_response = EventResponse::from((event, options));
 
     Ok(HttpResponse::Ok().json(json!({
         "message": "Event retrieved successfully",

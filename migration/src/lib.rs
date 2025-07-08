@@ -4,6 +4,7 @@ mod m20240101_000000_create_users_table;
 mod m20250707_223909_transactions;
 mod m20250708_130208_events;
 mod m20250708_150357_event_options;
+mod m20250708_180522_bets;
 
 pub struct Migrator;
 
@@ -15,6 +16,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250707_223909_transactions::Migration),
             Box::new(m20250708_130208_events::Migration),
             Box::new(m20250708_150357_event_options::Migration),
+            Box::new(m20250708_180522_bets::Migration),
         ]
     }
 }

@@ -2,6 +2,7 @@
 
 pub mod prelude;
 
+pub mod bets;
 pub mod event_options;
 pub mod events;
 pub mod transaction;

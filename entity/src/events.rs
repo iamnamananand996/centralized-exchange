@@ -32,6 +32,8 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(has_many = "super::bets::Entity")]
+    Bets,
     #[sea_orm(has_many = "super::event_options::Entity")]
     EventOptions,
     #[sea_orm(
@@ -50,6 +52,12 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     Users1,
+}
+
+impl Related<super::bets::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Bets.def()
+    }
 }
 
 impl Related<super::event_options::Entity> for Entity {
