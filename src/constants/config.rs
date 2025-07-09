@@ -13,3 +13,8 @@ pub fn get_jwt_secret() -> String {
     env::var("JWT_SECRET")
         .unwrap_or_else(|_| "your-secret-key".to_string())
 }
+
+pub fn get_cors_origin() -> String {
+    env::var("CORS_ORIGIN")
+        .unwrap_or_else(|_| "http://localhost:3000".to_string())
+}

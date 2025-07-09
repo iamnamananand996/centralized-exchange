@@ -1,4 +1,5 @@
 use actix_web::{web, App, HttpServer};
+use actix_cors::Cors;
 use dotenv::dotenv;
 use migration::sea_orm::{Database, DatabaseConnection};
 
@@ -42,6 +43,13 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(db.clone()))
+            .wrap(
+                Cors::default()
+                    .allowed_origin(&constants::config::get_cors_origin())
+                    .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
+                    .allowed_headers(vec!["Content-Type", "Authorization"])
+                    .max_age(3600),
+            )
             .service(routes::api::configure_routes())
     })
     .bind(&server_address)?
