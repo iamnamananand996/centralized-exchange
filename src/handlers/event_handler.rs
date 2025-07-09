@@ -1,5 +1,6 @@
 use crate::types::event::{CreateEventRequest, EventResponse, ListEventsQuery, UpdateEventRequest};
 use crate::utils::pagination::{PaginatedResponse, PaginationInfo};
+use crate::utils::cache::{CacheService, create_cache_key, cache_keys};
 use actix_web::{web, Error, HttpResponse, Result};
 use chrono::Utc;
 use entity::{event_options, events};
@@ -8,9 +9,11 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde_json::json;
+use deadpool_redis::Pool;
 
 pub async fn create_event(
     db: web::Data<DatabaseConnection>,
+    redis_pool: web::Data<Pool>,
     req: web::Json<CreateEventRequest>,
     user_id: web::ReqData<String>,
 ) -> Result<HttpResponse, Error> {
@@ -70,6 +73,14 @@ pub async fn create_event(
 
     let event_response = EventResponse::from((event, options));
 
+    // Invalidate events list cache
+    let cache_service = CacheService::new(redis_pool.get_ref().clone());
+    let events_list_pattern = format!("{}:*", cache_keys::EVENT_PREFIX);
+    // Note: We should ideally have a pattern-based delete, but for now we'll rely on TTL
+    if let Err(e) = cache_service.delete("events:list").await {
+        log::warn!("Failed to invalidate events list cache: {}", e);
+    }
+
     Ok(HttpResponse::Created().json(json!({
         "message": "Event created successfully",
         "event": Some(event_response),
@@ -78,6 +89,7 @@ pub async fn create_event(
 
 pub async fn update_event(
     db: web::Data<DatabaseConnection>,
+    redis_pool: web::Data<Pool>,
     event_id: web::Path<i32>,
     req: web::Json<UpdateEventRequest>,
     user_id: web::ReqData<String>,
@@ -193,6 +205,16 @@ pub async fn update_event(
 
     let event_response = EventResponse::from((updated_event, options));
 
+    // Invalidate relevant caches
+    let cache_service = CacheService::new(redis_pool.get_ref().clone());
+    let event_cache_key = create_cache_key(cache_keys::EVENT_PREFIX, &event_id.to_string());
+    if let Err(e) = cache_service.delete(&event_cache_key).await {
+        log::warn!("Failed to invalidate event cache: {}", e);
+    }
+    if let Err(e) = cache_service.delete("events:list").await {
+        log::warn!("Failed to invalidate events list cache: {}", e);
+    }
+
     Ok(HttpResponse::Ok().json(json!({
         "message": "Event updated successfully",
         "event": Some(event_response),
@@ -201,8 +223,24 @@ pub async fn update_event(
 
 pub async fn list_events(
     db: web::Data<DatabaseConnection>,
+    redis_pool: web::Data<Pool>,
     query: web::Query<ListEventsQuery>,
 ) -> Result<HttpResponse, Error> {
+    let cache_service = CacheService::new(redis_pool.get_ref().clone());
+    
+    // Create cache key based on query parameters
+    let cache_key = format!("events:list:{}:{}:{}:{}", 
+        query.status.as_deref().unwrap_or("all"),
+        query.category.as_deref().unwrap_or("all"),
+        query.pagination.get_page(),
+        query.pagination.get_limit()
+    );
+
+    // Try to get from cache first
+    if let Ok(Some(cached_response)) = cache_service.get::<serde_json::Value>(&cache_key).await {
+        return Ok(HttpResponse::Ok().json(cached_response));
+    }
+
     let mut events_query = events::Entity::find();
 
     // Apply filters
@@ -258,18 +296,37 @@ pub async fn list_events(
     let pagination_info = PaginationInfo::new(page, total_count, limit);
     let response = PaginatedResponse::new(events_response, pagination_info);
 
-    Ok(HttpResponse::Ok().json(json!({
+    let response_json = json!({
         "message": "Events retrieved successfully",
         "status": "success",
         "data": response.data,
         "pagination": response.pagination,
-    })))
+    });
+
+    // Cache the response for 5 minutes
+    if let Err(e) = cache_service.set(&cache_key, &response_json, 300).await {
+        log::warn!("Failed to cache events list: {}", e);
+    }
+
+    Ok(HttpResponse::Ok().json(response_json))
 }
 
 pub async fn get_event(
     db: web::Data<DatabaseConnection>,
+    redis_pool: web::Data<Pool>,
     event_id: web::Path<i32>,
 ) -> Result<HttpResponse, Error> {
+    let cache_service = CacheService::new(redis_pool.get_ref().clone());
+    let cache_key = create_cache_key(cache_keys::EVENT_PREFIX, &event_id.to_string());
+
+    // Try to get from cache first
+    if let Ok(Some(cached_event)) = cache_service.get::<serde_json::Value>(&cache_key).await {
+        return Ok(HttpResponse::Ok().json(json!({
+            "message": "Event retrieved successfully",
+            "event": cached_event,
+        })));
+    }
+
     let event = events::Entity::find_by_id(*event_id)
         .one(db.get_ref())
         .await
@@ -298,6 +355,11 @@ pub async fn get_event(
         })?;
 
     let event_response = EventResponse::from((event, options));
+
+    // Cache the event for 10 minutes
+    if let Err(e) = cache_service.set(&cache_key, &event_response, 600).await {
+        log::warn!("Failed to cache event: {}", e);
+    }
 
     Ok(HttpResponse::Ok().json(json!({
         "message": "Event retrieved successfully",

@@ -3,6 +3,7 @@ use crate::types::bet::{
     OptionSummary, PlaceBetRequest, PortfolioResponse, PositionDetail,
 };
 use crate::utils::pagination::{PaginatedResponse, PaginationInfo};
+use crate::utils::cache::{CacheService, create_cache_key, cache_keys};
 use actix_web::{web, Error, HttpResponse, Result};
 use entity::{bets, event_options, events, users};
 use sea_orm::{
@@ -10,9 +11,11 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, QueryTrait, Set,
 };
 use serde_json::json;
+use deadpool_redis::Pool;
 
 pub async fn place_bet(
     db: web::Data<DatabaseConnection>,
+    redis_pool: web::Data<Pool>,
     req: web::Json<PlaceBetRequest>,
     user_id: web::ReqData<String>,
 ) -> Result<HttpResponse, Error> {
@@ -176,6 +179,28 @@ pub async fn place_bet(
 
     let bet_response = BetResponse::from(bet);
 
+    // Invalidate relevant caches
+    let cache_service = CacheService::new(redis_pool.get_ref().clone());
+    let user_cache_key = create_cache_key(cache_keys::USER_PREFIX, &user_id_int.to_string());
+    let event_cache_key = create_cache_key(cache_keys::EVENT_PREFIX, &req.event_id.to_string());
+    let option_cache_key = format!("event_option:{}", req.option_id);
+    let bets_cache_key = format!("bets:{}:*", user_id_int);
+    let portfolio_cache_key = format!("portfolio:{}", user_id_int);
+    
+    // Delete relevant caches
+    if let Err(e) = cache_service.delete(&user_cache_key).await {
+        log::warn!("Failed to invalidate user cache: {}", e);
+    }
+    if let Err(e) = cache_service.delete(&event_cache_key).await {
+        log::warn!("Failed to invalidate event cache: {}", e);
+    }
+    if let Err(e) = cache_service.delete(&option_cache_key).await {
+        log::warn!("Failed to invalidate option cache: {}", e);
+    }
+    if let Err(e) = cache_service.delete(&portfolio_cache_key).await {
+        log::warn!("Failed to invalidate portfolio cache: {}", e);
+    }
+
     Ok(HttpResponse::Ok().json(json!({
         "success": true,
         "bet": bet_response,
@@ -185,6 +210,7 @@ pub async fn place_bet(
 
 pub async fn get_my_bets(
     db: web::Data<DatabaseConnection>,
+    redis_pool: web::Data<Pool>,
     query: web::Query<MyBetsQuery>,
     user_id: web::ReqData<String>,
 ) -> Result<HttpResponse, Error> {
@@ -192,6 +218,21 @@ pub async fn get_my_bets(
     let user_id_int: i32 = user_id_str
         .parse()
         .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
+
+    let cache_service = CacheService::new(redis_pool.get_ref().clone());
+    
+    // Create cache key based on user ID, status filter, and pagination
+    let cache_key = format!("bets:{}:{}:{}:{}", 
+        user_id_int,
+        query.status.as_deref().unwrap_or("all"),
+        query.pagination.get_page(),
+        query.pagination.get_limit()
+    );
+
+    // Try to get from cache first (shorter TTL for bet data)
+    if let Ok(Some(cached_response)) = cache_service.get::<serde_json::Value>(&cache_key).await {
+        return Ok(HttpResponse::Ok().json(cached_response));
+    }
 
     let mut bets_query = bets::Entity::find()
         .filter(bets::Column::UserId.eq(user_id_int))
@@ -306,22 +347,38 @@ pub async fn get_my_bets(
     let pagination_info = PaginationInfo::new(page, total_count, limit);
     let response = PaginatedResponse::new(my_bets, pagination_info);
 
-    Ok(HttpResponse::Ok().json(json!({
+    let response_json = json!({
         "success": true,
         "bets": response.data,
         "summary": summary,
         "pagination": response.pagination,
-    })))
+    });
+
+    // Cache the response for 2 minutes (shorter TTL for bet data)
+    if let Err(e) = cache_service.set(&cache_key, &response_json, 120).await {
+        log::warn!("Failed to cache my bets: {}", e);
+    }
+
+    Ok(HttpResponse::Ok().json(response_json))
 }
 
 pub async fn get_portfolio(
     db: web::Data<DatabaseConnection>,
+    redis_pool: web::Data<Pool>,
     user_id: web::ReqData<String>,
 ) -> Result<HttpResponse, Error> {
     let user_id_str = &*user_id;
     let user_id_int: i32 = user_id_str
         .parse()
         .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
+
+    let cache_service = CacheService::new(redis_pool.get_ref().clone());
+    let cache_key = format!("portfolio:{}", user_id_int);
+
+    // Try to get from cache first (shorter TTL for portfolio data)
+    if let Ok(Some(cached_portfolio)) = cache_service.get::<serde_json::Value>(&cache_key).await {
+        return Ok(HttpResponse::Ok().json(cached_portfolio));
+    }
 
     // Get user's current balance
     let user = users::Entity::find_by_id(user_id_int)
@@ -428,8 +485,15 @@ pub async fn get_portfolio(
         active_positions,
     };
 
-    Ok(HttpResponse::Ok().json(json!({
+    let response_json = json!({
         "success": true,
         "portfolio": portfolio
-    })))
+    });
+
+    // Cache the response for 2 minutes (shorter TTL for portfolio data)
+    if let Err(e) = cache_service.set(&cache_key, &response_json, 120).await {
+        log::warn!("Failed to cache portfolio: {}", e);
+    }
+
+    Ok(HttpResponse::Ok().json(response_json))
 }

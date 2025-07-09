@@ -2,6 +2,7 @@ use crate::types::event_option::{
     CreateEventOptionRequest, EventOptionResponse, UpdateEventOptionRequest,
 };
 use crate::utils::pagination::{PaginatedResponse, PaginationInfo, PaginationQuery};
+use crate::utils::cache::{CacheService, create_cache_key, cache_keys};
 use actix_web::{web, Error, HttpResponse, Result};
 use entity::{event_options, events};
 use sea_orm::{
@@ -9,9 +10,11 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde_json::json;
+use deadpool_redis::Pool;
 
 pub async fn create_event_option(
     db: web::Data<DatabaseConnection>,
+    redis_pool: web::Data<Pool>,
     req: web::Json<CreateEventOptionRequest>,
     user_id: web::ReqData<String>,
 ) -> Result<HttpResponse, Error> {
@@ -84,6 +87,16 @@ pub async fn create_event_option(
 
     let option_response = EventOptionResponse::from(option);
 
+    // Invalidate relevant caches
+    let cache_service = CacheService::new(redis_pool.get_ref().clone());
+    let event_cache_key = create_cache_key(cache_keys::EVENT_PREFIX, &req.event_id.to_string());
+    let options_list_key = format!("event_options:{}:*", req.event_id);
+    
+    if let Err(e) = cache_service.delete(&event_cache_key).await {
+        log::warn!("Failed to invalidate event cache: {}", e);
+    }
+    // Note: We should ideally have a pattern-based delete, but for now we'll rely on TTL
+    
     Ok(HttpResponse::Created().json(json!({
         "message": "Event option created successfully",
         "option": Some(option_response),
@@ -92,6 +105,7 @@ pub async fn create_event_option(
 
 pub async fn update_event_option(
     db: web::Data<DatabaseConnection>,
+    redis_pool: web::Data<Pool>,
     option_id: web::Path<i32>,
     req: web::Json<UpdateEventOptionRequest>,
     user_id: web::ReqData<String>,
@@ -185,6 +199,18 @@ pub async fn update_event_option(
 
     let option_response = EventOptionResponse::from(updated_option);
 
+    // Invalidate relevant caches
+    let cache_service = CacheService::new(redis_pool.get_ref().clone());
+    let option_cache_key = format!("event_option:{}", option_id);
+    let event_cache_key = create_cache_key(cache_keys::EVENT_PREFIX, &event.id.to_string());
+    
+    if let Err(e) = cache_service.delete(&option_cache_key).await {
+        log::warn!("Failed to invalidate option cache: {}", e);
+    }
+    if let Err(e) = cache_service.delete(&event_cache_key).await {
+        log::warn!("Failed to invalidate event cache: {}", e);
+    }
+
     Ok(HttpResponse::Ok().json(json!({
         "message": "Event option updated successfully",
         "option": Some(option_response),
@@ -193,9 +219,24 @@ pub async fn update_event_option(
 
 pub async fn list_event_options(
     db: web::Data<DatabaseConnection>,
+    redis_pool: web::Data<Pool>,
     event_id: web::Path<i32>,
     query: web::Query<PaginationQuery>,
 ) -> Result<HttpResponse, Error> {
+    let cache_service = CacheService::new(redis_pool.get_ref().clone());
+    
+    // Create cache key based on event ID and pagination
+    let cache_key = format!("event_options:{}:{}:{}", 
+        event_id,
+        query.get_page(),
+        query.get_limit()
+    );
+
+    // Try to get from cache first
+    if let Ok(Some(cached_response)) = cache_service.get::<serde_json::Value>(&cache_key).await {
+        return Ok(HttpResponse::Ok().json(cached_response));
+    }
+
     // Verify the event exists
     let event = events::Entity::find_by_id(*event_id)
         .one(db.get_ref())
@@ -248,18 +289,37 @@ pub async fn list_event_options(
     let pagination_info = PaginationInfo::new(page, total_count, limit);
     let response = PaginatedResponse::new(options_response, pagination_info);
 
-    Ok(HttpResponse::Ok().json(json!({
+    let response_json = json!({
         "message": "Event options retrieved successfully",
         "status": "success",
         "data": response.data,
         "pagination": response.pagination,
-    })))
+    });
+
+    // Cache the response for 10 minutes
+    if let Err(e) = cache_service.set(&cache_key, &response_json, 600).await {
+        log::warn!("Failed to cache event options list: {}", e);
+    }
+
+    Ok(HttpResponse::Ok().json(response_json))
 }
 
 pub async fn get_event_option(
     db: web::Data<DatabaseConnection>,
+    redis_pool: web::Data<Pool>,
     option_id: web::Path<i32>,
 ) -> Result<HttpResponse, Error> {
+    let cache_service = CacheService::new(redis_pool.get_ref().clone());
+    let cache_key = format!("event_option:{}", option_id);
+
+    // Try to get from cache first
+    if let Ok(Some(cached_option)) = cache_service.get::<serde_json::Value>(&cache_key).await {
+        return Ok(HttpResponse::Ok().json(json!({
+            "message": "Event option retrieved successfully",
+            "option": cached_option,
+        })));
+    }
+
     let option = event_options::Entity::find_by_id(*option_id)
         .one(db.get_ref())
         .await
@@ -279,6 +339,11 @@ pub async fn get_event_option(
     };
 
     let option_response = EventOptionResponse::from(option);
+
+    // Cache the option for 10 minutes
+    if let Err(e) = cache_service.set(&cache_key, &option_response, 600).await {
+        log::warn!("Failed to cache event option: {}", e);
+    }
 
     Ok(HttpResponse::Ok().json(json!({
         "message": "Event option retrieved successfully",

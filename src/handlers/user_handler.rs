@@ -4,6 +4,8 @@ use sea_orm::{DatabaseConnection, EntityTrait, QueryOrder, QuerySelect, Paginato
 use serde_json::json;
 use crate::utils::pagination::{PaginationInfo, PaginatedResponse};
 use crate::types::user::{ListUsersQuery, UserResponse};
+use crate::utils::cache::{CacheService, create_cache_key, cache_keys};
+use deadpool_redis::Pool;
 
 pub async fn list_users(
     db: web::Data<DatabaseConnection>,
@@ -60,8 +62,20 @@ pub async fn list_users(
 
 pub async fn get_user_details(
     db: web::Data<DatabaseConnection>,
+    redis_pool: web::Data<Pool>,
     user_id: web::Path<i32>,
 ) -> Result<HttpResponse, Error> {
+    let cache_service = CacheService::new(redis_pool.get_ref().clone());
+    let cache_key = create_cache_key(cache_keys::USER_PREFIX, &user_id.to_string());
+
+    // Try to get from cache first
+    if let Ok(Some(cached_user)) = cache_service.get::<serde_json::Value>(&cache_key).await {
+        return Ok(HttpResponse::Ok().json(json!({
+            "message": "User details retrieved successfully".to_string(),
+            "user": cached_user,
+        })));
+    }
+
     // Find user by ID
     let user = users::Entity::find_by_id(*user_id)
         .one(db.get_ref())
@@ -101,6 +115,11 @@ pub async fn get_user_details(
         "updated_at": user.updated_at,
     });
 
+    // Cache the user details for 10 minutes
+    if let Err(e) = cache_service.set(&cache_key, &user_response, 600).await {
+        log::warn!("Failed to cache user details: {}", e);
+    }
+
     Ok(HttpResponse::Ok().json(json!({
         "message": "User details retrieved successfully".to_string(),
         "user": Some(user_response),
@@ -109,12 +128,24 @@ pub async fn get_user_details(
 
 pub async fn get_current_user_details(
     db: web::Data<DatabaseConnection>,
+    redis_pool: web::Data<Pool>,
     user_id: web::ReqData<String>,
 ) -> Result<HttpResponse, Error> {
     let user_id_str = &*user_id;
     let user_id: i32 = user_id_str.parse().map_err(|_| {
         actix_web::error::ErrorBadRequest("Invalid user ID")
     })?;
+
+    let cache_service = CacheService::new(redis_pool.get_ref().clone());
+    let cache_key = create_cache_key(cache_keys::USER_PREFIX, &user_id.to_string());
+
+    // Try to get from cache first
+    if let Ok(Some(cached_user)) = cache_service.get::<serde_json::Value>(&cache_key).await {
+        return Ok(HttpResponse::Ok().json(json!({
+            "message": "Current user details retrieved successfully".to_string(),
+            "user": cached_user,
+        })));
+    }
 
     // Find user by ID
     let user = users::Entity::find_by_id(user_id)
@@ -154,6 +185,11 @@ pub async fn get_current_user_details(
         "created_at": user.created_at,
         "updated_at": user.updated_at,
     });
+
+    // Cache the user details for 10 minutes
+    if let Err(e) = cache_service.set(&cache_key, &user_response, 600).await {
+        log::warn!("Failed to cache user details: {}", e);
+    }
 
     Ok(HttpResponse::Ok().json(json!({
         "message": "Current user details retrieved successfully".to_string(),
