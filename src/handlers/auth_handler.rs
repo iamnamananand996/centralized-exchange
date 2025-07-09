@@ -5,25 +5,9 @@ use sea_orm::{
     prelude::Decimal, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
     Set,
 };
-use serde::Deserialize;
 use serde_json::json;
-
 use crate::utils::jwt::create_jwt_token;
-
-#[derive(Deserialize)]
-pub struct RegisterRequest {
-    pub username: String,
-    pub email: String,
-    pub phone: Option<String>,
-    pub password: String,
-    pub full_name: Option<String>,
-}
-
-#[derive(Deserialize)]
-pub struct LoginRequest {
-    pub email: String,
-    pub password: String,
-}
+use crate::types::auth::{RegisterRequest, LoginRequest};
 
 pub async fn register(
     db: web::Data<DatabaseConnection>,

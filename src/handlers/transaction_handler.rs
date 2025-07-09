@@ -1,44 +1,15 @@
+use crate::types::transaction::{DepositRequest, TransactionResponse, WithdrawRequest};
+use crate::utils::pagination::{PaginatedResponse, PaginationInfo, PaginationQuery};
 use actix_web::{web, Error, HttpResponse, Result};
 use entity::{transaction, users};
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
-    TransactionTrait,
-};
+use rust_decimal::Decimal as RustDecimal;
 use sea_orm::prelude::Decimal;
-use serde::{Deserialize, Serialize};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
+};
 use serde_json::json;
 use uuid::Uuid;
-use rust_decimal::Decimal as RustDecimal;
-use crate::utils::pagination::{PaginationQuery, PaginationInfo, PaginatedResponse};
-
-#[derive(Deserialize)]
-pub struct DepositRequest {
-    pub amount: f64,
-}
-
-#[derive(Deserialize)]
-pub struct WithdrawRequest {
-    pub amount: f64,
-}
-
-
-
-#[derive(Serialize)]
-pub struct TransactionResponse {
-    pub id: i32,
-    pub user_id: i32,
-    pub r#type: String,
-    pub amount: f64,
-    pub balance_before: f64,
-    pub balance_after: f64,
-    pub status: String,
-    pub reference_id: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
-
-
-
 
 pub async fn deposit_money(
     db: web::Data<DatabaseConnection>,
@@ -46,9 +17,9 @@ pub async fn deposit_money(
     request: web::Json<DepositRequest>,
 ) -> Result<HttpResponse, Error> {
     let user_id_str = &*user_id;
-    let user_id: i32 = user_id_str.parse().map_err(|_| {
-        actix_web::error::ErrorBadRequest("Invalid user ID")
-    })?;
+    let user_id: i32 = user_id_str
+        .parse()
+        .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
 
     let amount = request.amount;
     if amount <= 0.0 {
@@ -90,21 +61,23 @@ pub async fn deposit_money(
         })));
     }
 
-    let balance_before = user.wallet_balance.to_string().parse::<f64>().unwrap_or(0.0);
+    let balance_before = user
+        .wallet_balance
+        .to_string()
+        .parse::<f64>()
+        .unwrap_or(0.0);
     let balance_after = balance_before + amount;
 
     // Update user balance
     let mut user_active_model: users::ActiveModel = user.into();
-    user_active_model.wallet_balance = Set(Decimal::from(RustDecimal::try_from(balance_after).unwrap()));
+    user_active_model.wallet_balance =
+        Set(Decimal::from(RustDecimal::try_from(balance_after).unwrap()));
     user_active_model.updated_at = Set(chrono::Utc::now().naive_utc());
 
-    let _updated_user = user_active_model
-        .update(&txn)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to update user balance: {}", e);
-            actix_web::error::ErrorInternalServerError("Failed to update balance")
-        })?;
+    let _updated_user = user_active_model.update(&txn).await.map_err(|e| {
+        log::error!("Failed to update user balance: {}", e);
+        actix_web::error::ErrorInternalServerError("Failed to update balance")
+    })?;
 
     // Create transaction record
     let reference_id = Uuid::new_v4().to_string();
@@ -112,7 +85,9 @@ pub async fn deposit_money(
         user_id: Set(user_id),
         r#type: Set("deposit".to_string()),
         amount: Set(Decimal::from(RustDecimal::try_from(amount).unwrap())),
-        balance_before: Set(Decimal::from(RustDecimal::try_from(balance_before).unwrap())),
+        balance_before: Set(Decimal::from(
+            RustDecimal::try_from(balance_before).unwrap(),
+        )),
         balance_after: Set(Decimal::from(RustDecimal::try_from(balance_after).unwrap())),
         status: Set("completed".to_string()),
         reference_id: Set(reference_id.clone()),
@@ -120,13 +95,10 @@ pub async fn deposit_money(
         ..Default::default()
     };
 
-    let _transaction = transaction
-        .insert(&txn)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to create transaction record: {}", e);
-            actix_web::error::ErrorInternalServerError("Failed to create transaction")
-        })?;
+    let _transaction = transaction.insert(&txn).await.map_err(|e| {
+        log::error!("Failed to create transaction record: {}", e);
+        actix_web::error::ErrorInternalServerError("Failed to create transaction")
+    })?;
 
     // Commit transaction
     txn.commit().await.map_err(|e| {
@@ -152,9 +124,9 @@ pub async fn withdraw_money(
     request: web::Json<WithdrawRequest>,
 ) -> Result<HttpResponse, Error> {
     let user_id_str = &*user_id;
-    let user_id: i32 = user_id_str.parse().map_err(|_| {
-        actix_web::error::ErrorBadRequest("Invalid user ID")
-    })?;
+    let user_id: i32 = user_id_str
+        .parse()
+        .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
 
     let amount = request.amount;
     if amount <= 0.0 {
@@ -196,8 +168,12 @@ pub async fn withdraw_money(
         })));
     }
 
-    let balance_before = user.wallet_balance.to_string().parse::<f64>().unwrap_or(0.0);
-    
+    let balance_before = user
+        .wallet_balance
+        .to_string()
+        .parse::<f64>()
+        .unwrap_or(0.0);
+
     if balance_before < amount {
         return Ok(HttpResponse::BadRequest().json(json!({
             "message": "Insufficient balance".to_string(),
@@ -209,16 +185,14 @@ pub async fn withdraw_money(
 
     // Update user balance
     let mut user_active_model: users::ActiveModel = user.into();
-    user_active_model.wallet_balance = Set(Decimal::from(RustDecimal::try_from(balance_after).unwrap()));
+    user_active_model.wallet_balance =
+        Set(Decimal::from(RustDecimal::try_from(balance_after).unwrap()));
     user_active_model.updated_at = Set(chrono::Utc::now().naive_utc());
 
-    let _updated_user = user_active_model
-        .update(&txn)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to update user balance: {}", e);
-            actix_web::error::ErrorInternalServerError("Failed to update balance")
-        })?;
+    let _updated_user = user_active_model.update(&txn).await.map_err(|e| {
+        log::error!("Failed to update user balance: {}", e);
+        actix_web::error::ErrorInternalServerError("Failed to update balance")
+    })?;
 
     // Create transaction record
     let reference_id = Uuid::new_v4().to_string();
@@ -226,7 +200,9 @@ pub async fn withdraw_money(
         user_id: Set(user_id),
         r#type: Set("withdraw".to_string()),
         amount: Set(Decimal::from(RustDecimal::try_from(amount).unwrap())),
-        balance_before: Set(Decimal::from(RustDecimal::try_from(balance_before).unwrap())),
+        balance_before: Set(Decimal::from(
+            RustDecimal::try_from(balance_before).unwrap(),
+        )),
         balance_after: Set(Decimal::from(RustDecimal::try_from(balance_after).unwrap())),
         status: Set("completed".to_string()),
         reference_id: Set(reference_id.clone()),
@@ -234,13 +210,10 @@ pub async fn withdraw_money(
         ..Default::default()
     };
 
-    let _transaction = transaction
-        .insert(&txn)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to create transaction record: {}", e);
-            actix_web::error::ErrorInternalServerError("Failed to create transaction")
-        })?;
+    let _transaction = transaction.insert(&txn).await.map_err(|e| {
+        log::error!("Failed to create transaction record: {}", e);
+        actix_web::error::ErrorInternalServerError("Failed to create transaction")
+    })?;
 
     // Commit transaction
     txn.commit().await.map_err(|e| {
@@ -266,9 +239,9 @@ pub async fn get_transaction_history(
     query: web::Query<PaginationQuery>,
 ) -> Result<HttpResponse, Error> {
     let user_id_str = &*user_id;
-    let user_id: i32 = user_id_str.parse().map_err(|_| {
-        actix_web::error::ErrorBadRequest("Invalid user ID")
-    })?;
+    let user_id: i32 = user_id_str
+        .parse()
+        .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
 
     let page = query.get_page();
     let limit = query.get_limit();

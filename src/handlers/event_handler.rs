@@ -1,112 +1,13 @@
+use crate::types::event::{CreateEventRequest, EventResponse, ListEventsQuery, UpdateEventRequest};
+use crate::utils::pagination::{PaginatedResponse, PaginationInfo};
 use actix_web::{web, Error, HttpResponse, Result};
-use chrono::{DateTime, Utc};
-use entity::{events, event_options};
+use chrono::Utc;
+use entity::{event_options, events};
 use sea_orm::{
-    prelude::Decimal, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set, PaginatorTrait,
+    prelude::Decimal, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
-use serde::{Deserialize, Serialize};
 use serde_json::json;
-use crate::utils::pagination::{PaginationQuery, PaginationInfo, PaginatedResponse};
-
-#[derive(Deserialize, Debug)]
-pub struct CreateEventRequest {
-    pub title: String,
-    pub description: Option<String>,
-    pub category: Option<String>,
-    pub end_time: DateTime<Utc>,
-    pub min_bet_amount: Option<Decimal>,
-    pub max_bet_amount: Option<Decimal>,
-    pub image_url: Option<String>,
-}
-
-#[derive(Deserialize)]
-pub struct UpdateEventRequest {
-    pub title: Option<String>,
-    pub description: Option<String>,
-    pub category: Option<String>,
-    pub status: Option<String>,
-    pub end_time: Option<DateTime<Utc>>,
-    pub min_bet_amount: Option<Decimal>,
-    pub max_bet_amount: Option<Decimal>,
-    pub image_url: Option<String>,
-}
-
-#[derive(Deserialize)]
-pub struct ListEventsQuery {
-    pub status: Option<String>,
-    pub category: Option<String>,
-    #[serde(flatten)]
-    pub pagination: PaginationQuery,
-}
-
-#[derive(Serialize)]
-pub struct OptionResponse {
-    pub id: i32,
-    pub option_text: String,
-    pub current_price: Decimal,
-    pub total_backing: Decimal,
-    pub is_winning_option: Option<bool>,
-}
-
-impl From<event_options::Model> for OptionResponse {
-    fn from(option: event_options::Model) -> Self {
-        Self {
-            id: option.id,
-            option_text: option.option_text,
-            current_price: option.current_price,
-            total_backing: option.total_backing,
-            is_winning_option: option.is_winning_option,
-        }
-    }
-}
-
-#[derive(Serialize)]
-pub struct EventResponse {
-    pub id: i32,
-    pub title: String,
-    pub description: String,
-    pub category: String,
-    pub status: String,
-    pub end_time: chrono::NaiveDateTime,
-    pub min_bet_amount: Decimal,
-    pub max_bet_amount: Decimal,
-    pub total_volume: Decimal,
-    pub image_url: String,
-    pub created_by: i32,
-    pub resolved_by: Option<i32>,
-    pub winning_option_id: Option<i32>,
-    pub resolution_note: String,
-    pub resolved_at: Option<chrono::NaiveDateTime>,
-    pub created_at: chrono::NaiveDateTime,
-    pub updated_at: chrono::NaiveDateTime,
-    pub options: Vec<OptionResponse>,
-}
-
-impl From<(events::Model, Vec<event_options::Model>)> for EventResponse {
-    fn from((event, options): (events::Model, Vec<event_options::Model>)) -> Self {
-        Self {
-            id: event.id,
-            title: event.title,
-            description: event.description,
-            category: event.category,
-            status: event.status,
-            end_time: event.end_time,
-            min_bet_amount: event.min_bet_amount,
-            max_bet_amount: event.max_bet_amount,
-            total_volume: event.total_volume,
-            image_url: event.image_url,
-            created_by: event.created_by,
-            resolved_by: if event.resolved_by == 0 { None } else { Some(event.resolved_by) },
-            winning_option_id: if event.winning_option_id == 0 { None } else { Some(event.winning_option_id) },
-            resolution_note: event.resolution_note,
-            resolved_at: if event.resolved_at == chrono::NaiveDateTime::default() { None } else { Some(event.resolved_at) },
-            created_at: event.created_at,
-            updated_at: event.updated_at,
-            options: options.into_iter().map(OptionResponse::from).collect(),
-        }
-    }
-}
 
 pub async fn create_event(
     db: web::Data<DatabaseConnection>,
@@ -114,9 +15,9 @@ pub async fn create_event(
     user_id: web::ReqData<String>,
 ) -> Result<HttpResponse, Error> {
     let user_id_str = &*user_id;
-    let creator_id: i32 = user_id_str.parse().map_err(|_| {
-        actix_web::error::ErrorBadRequest("Invalid user ID")
-    })?;
+    let creator_id: i32 = user_id_str
+        .parse()
+        .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
 
     log::info!("Creating event for user: {}", creator_id);
     log::info!("Request: {:?}", req);
@@ -132,16 +33,21 @@ pub async fn create_event(
     let new_event = events::ActiveModel {
         title: Set(req.title.clone()),
         description: Set(req.description.clone().unwrap_or_default()),
-        category: Set(req.category.clone().unwrap_or_else(|| "general".to_string())),
+        category: Set(req
+            .category
+            .clone()
+            .unwrap_or_else(|| "general".to_string())),
         status: Set("draft".to_string()),
         end_time: Set(req.end_time.naive_utc()),
         min_bet_amount: Set(req.min_bet_amount.unwrap_or_else(|| Decimal::new(1000, 2))), // 10.00
-        max_bet_amount: Set(req.max_bet_amount.unwrap_or_else(|| Decimal::new(100000, 2))), // 1000.00
+        max_bet_amount: Set(req
+            .max_bet_amount
+            .unwrap_or_else(|| Decimal::new(100000, 2))), // 1000.00
         total_volume: Set(Decimal::new(0, 2)),
         image_url: Set(req.image_url.clone().unwrap_or_default()),
         created_by: Set(creator_id),
         resolved_by: Set(creator_id), // Using 0 as default for nullable int fields
-        winning_option_id: Set(0), // Using 0 as default for nullable int fields
+        winning_option_id: Set(0),    // Using 0 as default for nullable int fields
         resolution_note: Set("".to_string()),
         resolved_at: Set(chrono::Utc::now().naive_utc()), // Using current time as default, will be properly set when resolved
         ..Default::default()
@@ -177,9 +83,9 @@ pub async fn update_event(
     user_id: web::ReqData<String>,
 ) -> Result<HttpResponse, Error> {
     let user_id_str = &*user_id;
-    let requester_id: i32 = user_id_str.parse().map_err(|_| {
-        actix_web::error::ErrorBadRequest("Invalid user ID")
-    })?;
+    let requester_id: i32 = user_id_str
+        .parse()
+        .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
 
     // Find the event
     let event = events::Entity::find_by_id(*event_id)
@@ -240,7 +146,16 @@ pub async fn update_event(
     }
     if let Some(status) = &req.status {
         // Validate status
-        if !["draft", "active", "paused", "ended", "resolved", "cancelled"].contains(&status.as_str()) {
+        if ![
+            "draft",
+            "active",
+            "paused",
+            "ended",
+            "resolved",
+            "cancelled",
+        ]
+        .contains(&status.as_str())
+        {
             return Ok(HttpResponse::BadRequest().json(json!({
                 "message": "Invalid status. Must be one of: draft, active, paused, ended, resolved, cancelled",
                 "event": serde_json::Value::Null,
@@ -336,7 +251,7 @@ pub async fn list_events(
                 log::error!("Database error: {}", e);
                 actix_web::error::ErrorInternalServerError("Database error occurred")
             })?;
-        
+
         events_response.push(EventResponse::from((event, options)));
     }
 

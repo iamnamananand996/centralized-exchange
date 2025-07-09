@@ -1,0 +1,40 @@
+use serde::{Deserialize, Serialize};
+use sea_orm::prelude::Decimal;
+use entity::event_options;
+
+#[derive(Deserialize, Debug)]
+pub struct CreateEventOptionRequest {
+    pub event_id: i32,
+    pub option_text: String,
+    pub current_price: Option<Decimal>,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateEventOptionRequest {
+    pub option_text: Option<String>,
+    pub current_price: Option<Decimal>,
+    pub is_winning_option: Option<bool>,
+}
+
+#[derive(Serialize)]
+pub struct EventOptionResponse {
+    pub id: i32,
+    pub event_id: i32,
+    pub option_text: String,
+    pub current_price: Decimal,
+    pub total_backing: Decimal,
+    pub is_winning_option: Option<bool>,
+}
+
+impl From<event_options::Model> for EventOptionResponse {
+    fn from(option: event_options::Model) -> Self {
+        Self {
+            id: option.id,
+            event_id: option.event_id,
+            option_text: option.option_text,
+            current_price: option.current_price,
+            total_backing: option.total_backing,
+            is_winning_option: option.is_winning_option,
+        }
+    }
+} 

@@ -1,49 +1,14 @@
+use crate::types::event_option::{
+    CreateEventOptionRequest, EventOptionResponse, UpdateEventOptionRequest,
+};
+use crate::utils::pagination::{PaginatedResponse, PaginationInfo, PaginationQuery};
 use actix_web::{web, Error, HttpResponse, Result};
 use entity::{event_options, events};
 use sea_orm::{
-    prelude::Decimal, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set, PaginatorTrait,
+    prelude::Decimal, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
-use serde::{Deserialize, Serialize};
 use serde_json::json;
-use crate::utils::pagination::{PaginationQuery, PaginationInfo, PaginatedResponse};
-
-#[derive(Deserialize, Debug)]
-pub struct CreateEventOptionRequest {
-    pub event_id: i32,
-    pub option_text: String,
-    pub current_price: Option<Decimal>,
-}
-
-#[derive(Deserialize)]
-pub struct UpdateEventOptionRequest {
-    pub option_text: Option<String>,
-    pub current_price: Option<Decimal>,
-    pub is_winning_option: Option<bool>,
-}
-
-#[derive(Serialize)]
-pub struct EventOptionResponse {
-    pub id: i32,
-    pub event_id: i32,
-    pub option_text: String,
-    pub current_price: Decimal,
-    pub total_backing: Decimal,
-    pub is_winning_option: Option<bool>,
-}
-
-impl From<event_options::Model> for EventOptionResponse {
-    fn from(option: event_options::Model) -> Self {
-        Self {
-            id: option.id,
-            event_id: option.event_id,
-            option_text: option.option_text,
-            current_price: option.current_price,
-            total_backing: option.total_backing,
-            is_winning_option: option.is_winning_option,
-        }
-    }
-}
 
 pub async fn create_event_option(
     db: web::Data<DatabaseConnection>,
@@ -51,9 +16,9 @@ pub async fn create_event_option(
     user_id: web::ReqData<String>,
 ) -> Result<HttpResponse, Error> {
     let user_id_str = &*user_id;
-    let creator_id: i32 = user_id_str.parse().map_err(|_| {
-        actix_web::error::ErrorBadRequest("Invalid user ID")
-    })?;
+    let creator_id: i32 = user_id_str
+        .parse()
+        .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
 
     log::info!("Creating event option for user: {}", creator_id);
     log::info!("Request: {:?}", req);
@@ -132,9 +97,9 @@ pub async fn update_event_option(
     user_id: web::ReqData<String>,
 ) -> Result<HttpResponse, Error> {
     let user_id_str = &*user_id;
-    let requester_id: i32 = user_id_str.parse().map_err(|_| {
-        actix_web::error::ErrorBadRequest("Invalid user ID")
-    })?;
+    let requester_id: i32 = user_id_str
+        .parse()
+        .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
 
     // Find the event option
     let option = event_options::Entity::find_by_id(*option_id)
@@ -247,8 +212,8 @@ pub async fn list_event_options(
         })));
     }
 
-    let options_query = event_options::Entity::find()
-        .filter(event_options::Column::EventId.eq(*event_id));
+    let options_query =
+        event_options::Entity::find().filter(event_options::Column::EventId.eq(*event_id));
 
     // Apply pagination
     let page = query.get_page();
@@ -277,10 +242,8 @@ pub async fn list_event_options(
             actix_web::error::ErrorInternalServerError("Database error occurred")
         })?;
 
-    let options_response: Vec<EventOptionResponse> = options
-        .into_iter()
-        .map(EventOptionResponse::from)
-        .collect();
+    let options_response: Vec<EventOptionResponse> =
+        options.into_iter().map(EventOptionResponse::from).collect();
 
     let pagination_info = PaginationInfo::new(page, total_count, limit);
     let response = PaginatedResponse::new(options_response, pagination_info);
