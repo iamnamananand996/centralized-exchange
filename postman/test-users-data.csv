@@ -1,0 +1,27 @@
+username,email,phone,password,full_name,deposit_amount
+alice_trader,alice@testexchange.com,+11234567890,Alice@Secure123,Alice Thompson,2500
+bob_investor,bob@testexchange.com,+11234567891,Bob@Secure456,Bob Williams,3500
+charlie_better,charlie@testexchange.com,+11234567892,Charlie@789,Charlie Brown,1500
+diana_pro,diana@testexchange.com,+11234567893,Diana@Pro321,Diana Prince,5000
+edward_whale,edward@testexchange.com,+11234567894,Edward@Whale999,Edward Norton,10000
+fiona_casual,fiona@testexchange.com,+11234567895,Fiona@Cast555,Fiona Apple,800
+george_risk,george@testexchange.com,+11234567896,George@Risk777,George Martin,4000
+helen_safe,helen@testexchange.com,+11234567897,Helen@Safe111,Helen Troy,1200
+ivan_bold,ivan@testexchange.com,+11234567898,Ivan@Bold222,Ivan Drago,6000
+julia_smart,julia@testexchange.com,+11234567899,Julia@Smart333,Julia Roberts,2800
+kevin_lucky,kevin@testexchange.com,+11234567900,Kevin@Lucky444,Kevin Hart,3200
+laura_wise,laura@testexchange.com,+11234567901,Laura@Wise555,Laura Palmer,2000
+mike_sharp,mike@testexchange.com,+11234567902,Mike@Sharp666,Mike Tyson,7500
+nina_quick,nina@testexchange.com,+11234567903,Nina@Quick777,Nina Simone,1800
+oscar_steady,oscar@testexchange.com,+11234567904,Oscar@Steady888,Oscar Wilde,4500
+paula_careful,paula@testexchange.com,+11234567905,Paula@Care999,Paula Abdul,2200
+quinn_expert,quinn@testexchange.com,+11234567906,Quinn@Expert000,Quinn Hughes,5500
+rachel_newbie,rachel@testexchange.com,+11234567907,Rachel@New111,Rachel Green,1000
+steve_veteran,steve@testexchange.com,+11234567908,Steve@Vet222,Steve Jobs,8000
+tina_moderate,tina@testexchange.com,+11234567909,Tina@Mod333,Tina Turner,3000
+uma_strategic,uma@testexchange.com,+11234567910,Uma@Strat444,Uma Thurman,4200
+victor_patient,victor@testexchange.com,+11234567911,Victor@Pat555,Victor Hugo,2600
+wendy_active,wendy@testexchange.com,+11234567912,Wendy@Act666,Wendy Williams,3800
+xavier_careful,xavier@testexchange.com,+11234567913,Xavier@Care777,Xavier Woods,1600
+yara_ambitious,yara@testexchange.com,+11234567914,Yara@Amb888,Yara Martinez,5200
+zoe_balanced,zoe@testexchange.com,+11234567915,Zoe@Bal999,Zoe Saldana,2400 

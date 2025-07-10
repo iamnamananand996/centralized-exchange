@@ -1,0 +1,1366 @@
+{
+	"info": {
+		"_postman_id": "97a368e9-6311-463d-adde-c73363f67495",
+		"name": "centralized-exchange-automated-v2",
+		"description": "Automated test collection for Centralized Exchange API with skip registration option to reuse existing users",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "9042885"
+	},
+	"item": [
+		{
+			"name": "Setup and Health Check",
+			"item": [
+				{
+					"name": "Initialize Collection Variables",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// IMPORTANT: Set skipRegistration to true to reuse existing users",
+									"// Make sure you have 'savedUsers' in your environment variables",
+									"const skipRegistration = pm.environment.get('skipRegistration') === 'true';",
+									"",
+									"// Initialize collection variables for storing multiple users and their data",
+									"if (!pm.collectionVariables.has('users')) {",
+									"    pm.collectionVariables.set('users', JSON.stringify([]));",
+									"}",
+									"",
+									"if (!pm.collectionVariables.has('currentUserIndex')) {",
+									"    pm.collectionVariables.set('currentUserIndex', 0);",
+									"}",
+									"",
+									"if (!pm.collectionVariables.has('activeEvents')) {",
+									"    pm.collectionVariables.set('activeEvents', JSON.stringify([]));",
+									"}",
+									"",
+									"if (!pm.collectionVariables.has('mostPopularEvent')) {",
+									"    pm.collectionVariables.set('mostPopularEvent', null);",
+									"}",
+									"",
+									"// Set default values",
+									"pm.collectionVariables.set('totalUsers', 30); // Number of users to create",
+									"pm.collectionVariables.set('minDeposit', 500);",
+									"pm.collectionVariables.set('maxDeposit', 5000);",
+									"pm.collectionVariables.set('minBetAmount', 10);",
+									"pm.collectionVariables.set('maxBetAmount', 100);",
+									"pm.collectionVariables.set('skipRegistration', skipRegistration);",
+									"",
+									"console.log('=================================');",
+									"console.log('Collection variables initialized');",
+									"console.log('Skip Registration:', skipRegistration);",
+									"console.log('=================================');"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Variables initialized successfully\", function () {",
+									"    pm.expect(pm.collectionVariables.has('users')).to.be.true;",
+									"    pm.expect(pm.collectionVariables.has('currentUserIndex')).to.be.true;",
+									"    pm.expect(pm.collectionVariables.has('totalUsers')).to.be.true;",
+									"});",
+									"",
+									"const skipRegistration = pm.collectionVariables.get('skipRegistration');",
+									"",
+									"if (skipRegistration) {",
+									"    // Skip to loading saved users",
+									"    postman.setNextRequest('Load Saved Users');",
+									"} else {",
+									"    // Continue with normal flow",
+									"    postman.setNextRequest('Health Check');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/health",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"health"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Health Check",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"API is healthy\", function () {",
+									"    pm.response.to.have.status(200);",
+									"    const responseData = pm.response.json();",
+									"    pm.expect(responseData.status).to.equal('healthy');",
+									"});",
+									"",
+									"// Set next request to start user registration",
+									"postman.setNextRequest('Bulk Register Users');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/health",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"health"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "User Management",
+			"item": [
+				{
+					"name": "Load Saved Users",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// This request loads previously saved users from environment",
+									"console.log('Attempting to load saved users from environment...');"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Load users from environment variable",
+									"const savedUsersJson = pm.environment.get('savedUsers');",
+									"",
+									"if (savedUsersJson) {",
+									"    try {",
+									"        const savedUsers = JSON.parse(savedUsersJson);",
+									"        pm.collectionVariables.set('users', JSON.stringify(savedUsers));",
+									"        ",
+									"        console.log(`Successfully loaded ${savedUsers.length} users from environment`);",
+									"        console.log('Sample user:', savedUsers[0] ? savedUsers[0].email : 'No users found');",
+									"        ",
+									"        pm.test(\"Users loaded successfully\", function () {",
+									"            pm.expect(savedUsers).to.be.an('array');",
+									"            pm.expect(savedUsers.length).to.be.greaterThan(0);",
+									"        });",
+									"        ",
+									"        // Skip to login",
+									"        pm.collectionVariables.set('currentUserIndex', 0);",
+									"        postman.setNextRequest('Bulk Login Users');",
+									"    } catch (error) {",
+									"        console.error('Failed to parse saved users:', error);",
+									"        pm.test(\"Failed to load users\", function () {",
+									"            pm.expect.fail('Could not parse saved users from environment');",
+									"        });",
+									"        postman.setNextRequest(null);",
+									"    }",
+									"} else {",
+									"    console.error('No saved users found in environment!');",
+									"    console.log('Please ensure you have run the collection with registration at least once');",
+									"    console.log('and that the users were saved to the environment.');",
+									"    ",
+									"    pm.test(\"No saved users found\", function () {",
+									"        pm.expect.fail('No savedUsers found in environment variables');",
+									"    });",
+									"    ",
+									"    // Optionally, fall back to registration",
+									"    console.log('Falling back to registration...');",
+									"    postman.setNextRequest('Health Check');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/health",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "This is a dummy request that loads saved users from environment variables"
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Register Users",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Generate unique user data",
+									"const currentIndex = pm.collectionVariables.get('currentUserIndex');",
+									"const timestamp = Date.now();",
+									"const randomNum = Math.floor(Math.random() * 10000);",
+									"",
+									"const userData = {",
+									"    username: `testuser_${currentIndex}_${randomNum}`,",
+									"    email: `user${currentIndex}_${timestamp}@test.com`,",
+									"    phone: `+1${String(Math.floor(Math.random() * 9000000000) + 1000000000)}`,",
+									"    password: `Test@${currentIndex}${randomNum}`,",
+									"    full_name: `Test User ${currentIndex}`",
+									"};",
+									"",
+									"pm.variables.set('newUserData', JSON.stringify(userData));",
+									"console.log(`Creating user ${currentIndex + 1}: ${userData.username}`);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const currentIndex = pm.collectionVariables.get('currentUserIndex');",
+									"const totalUsers = pm.collectionVariables.get('totalUsers');",
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"",
+									"if (pm.response.code === 201) {",
+									"    const responseData = pm.response.json();",
+									"    const userData = JSON.parse(pm.variables.get('newUserData'));",
+									"    ",
+									"    // Store user data including password for login",
+									"    users.push({",
+									"        id: responseData.user.id,",
+									"        username: responseData.user.username,",
+									"        email: responseData.user.email,",
+									"        password: userData.password,",
+									"        token: responseData.token,",
+									"        wallet_balance: responseData.user.wallet_balance,",
+									"        bets: [],",
+									"        portfolio: null",
+									"    });",
+									"    ",
+									"    pm.collectionVariables.set('users', JSON.stringify(users));",
+									"    console.log(`User ${currentIndex + 1} created successfully`);",
+									"    ",
+									"    pm.test(`User ${currentIndex + 1} registered successfully`, function () {",
+									"        pm.expect(pm.response.code).to.equal(201);",
+									"        pm.expect(responseData.user).to.have.property('id');",
+									"        pm.expect(responseData.token).to.be.a('string');",
+									"    });",
+									"} else {",
+									"    console.log(`Failed to create user ${currentIndex + 1}:`, pm.response.text());",
+									"    pm.test(`User ${currentIndex + 1} registration failed - retrying`, function () {",
+									"        pm.expect(pm.response.code).to.equal(201);",
+									"    });",
+									"}",
+									"",
+									"// Continue creating users or move to next step",
+									"if (currentIndex + 1 < totalUsers) {",
+									"    pm.collectionVariables.set('currentUserIndex', currentIndex + 1);",
+									"    postman.setNextRequest('Bulk Register Users');",
+									"} else {",
+									"    console.log(`Created ${users.length} users successfully`);",
+									"    pm.collectionVariables.set('currentUserIndex', 0);",
+									"    postman.setNextRequest('Save Users to Environment');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{{newUserData}}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/auth/register",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Save Users to Environment",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// This request saves the registered users to environment for future use",
+									"console.log('Saving users to environment...');"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Save users to environment variable",
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"",
+									"if (users && users.length > 0) {",
+									"    // Save to environment for persistence",
+									"    pm.environment.set('savedUsers', JSON.stringify(users));",
+									"    pm.environment.set('savedUsersCount', users.length);",
+									"    pm.environment.set('savedUsersDate', new Date().toISOString());",
+									"    ",
+									"    console.log(`Saved ${users.length} users to environment`);",
+									"    console.log('Users can now be reused by setting skipRegistration=true');",
+									"    ",
+									"    pm.test(\"Users saved to environment\", function () {",
+									"        pm.expect(users).to.be.an('array');",
+									"        pm.expect(users.length).to.be.greaterThan(0);",
+									"    });",
+									"    ",
+									"    // Continue to login",
+									"    postman.setNextRequest('Bulk Login Users');",
+									"} else {",
+									"    console.error('No users to save!');",
+									"    pm.test(\"Failed to save users\", function () {",
+									"        pm.expect.fail('No users found to save');",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/health",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "This is a dummy request that saves users to environment variables"
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Login Users",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"const currentIndex = pm.collectionVariables.get('currentUserIndex');",
+									"",
+									"if (users[currentIndex]) {",
+									"    const loginData = {",
+									"        email: users[currentIndex].email,",
+									"        password: users[currentIndex].password",
+									"    };",
+									"    pm.variables.set('loginData', JSON.stringify(loginData));",
+									"    console.log(`Logging in user ${currentIndex + 1}: ${users[currentIndex].email}`);",
+									"} else {",
+									"    console.error('No user data found at index', currentIndex);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const currentIndex = pm.collectionVariables.get('currentUserIndex');",
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"",
+									"if (pm.response.code === 200) {",
+									"    const responseData = pm.response.json();",
+									"    ",
+									"    // Update user token",
+									"    users[currentIndex].token = responseData.token;",
+									"    pm.collectionVariables.set('users', JSON.stringify(users));",
+									"    ",
+									"    pm.test(`User ${currentIndex + 1} logged in successfully`, function () {",
+									"        pm.expect(pm.response.code).to.equal(200);",
+									"        pm.expect(responseData.token).to.be.a('string');",
+									"    });",
+									"    ",
+									"    console.log(`User ${currentIndex + 1} logged in successfully`);",
+									"} else {",
+									"    console.error(`Failed to login user ${currentIndex + 1}:`, pm.response.text());",
+									"}",
+									"",
+									"// Continue logging in users or move to deposits",
+									"if (currentIndex + 1 < users.length) {",
+									"    pm.collectionVariables.set('currentUserIndex', currentIndex + 1);",
+									"    postman.setNextRequest('Bulk Login Users');",
+									"} else {",
+									"    console.log(`All ${users.length} users logged in successfully`);",
+									"    pm.collectionVariables.set('currentUserIndex', 0);",
+									"    postman.setNextRequest('Bulk Deposit Money');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{{loginData}}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/auth/login",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Wallet Operations",
+			"item": [
+				{
+					"name": "Bulk Deposit Money",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"const currentIndex = pm.collectionVariables.get('currentUserIndex');",
+									"const minDeposit = pm.collectionVariables.get('minDeposit');",
+									"const maxDeposit = pm.collectionVariables.get('maxDeposit');",
+									"",
+									"// Generate random deposit amount",
+									"const depositAmount = Math.floor(Math.random() * (maxDeposit - minDeposit + 1)) + minDeposit;",
+									"",
+									"pm.variables.set('depositAmount', depositAmount);",
+									"pm.variables.set('currentUserToken', users[currentIndex].token);",
+									"console.log(`Depositing $${depositAmount} for user ${currentIndex + 1}`);",
+									"",
+									"// Set authorization header",
+									"pm.request.headers.add({",
+									"    key: 'Authorization',",
+									"    value: `Bearer ${users[currentIndex].token}`",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const currentIndex = pm.collectionVariables.get('currentUserIndex');",
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"",
+									"if (pm.response.code === 200) {",
+									"    const responseData = pm.response.json();",
+									"    ",
+									"    // Update user balance",
+									"    users[currentIndex].wallet_balance = responseData.data.balance_after;",
+									"    pm.collectionVariables.set('users', JSON.stringify(users));",
+									"    ",
+									"    pm.test(`Deposit successful for user ${currentIndex + 1}`, function () {",
+									"        pm.expect(pm.response.code).to.equal(200);",
+									"        pm.expect(responseData.status).to.equal('success');",
+									"        pm.expect(responseData.data.balance_after).to.be.greaterThan(responseData.data.balance_before);",
+									"    });",
+									"    ",
+									"    console.log(`User ${currentIndex + 1} balance: $${responseData.data.balance_after}`);",
+									"} else {",
+									"    console.error(`Failed to deposit for user ${currentIndex + 1}:`, pm.response.text());",
+									"}",
+									"",
+									"// Continue deposits or move to events",
+									"if (currentIndex + 1 < users.length) {",
+									"    pm.collectionVariables.set('currentUserIndex', currentIndex + 1);",
+									"    postman.setNextRequest('Bulk Deposit Money');",
+									"} else {",
+									"    console.log(`All users have deposited money`);",
+									"    pm.collectionVariables.set('currentUserIndex', 0);",
+									"    postman.setNextRequest('Create Test Events');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": {{depositAmount}}\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/wallet/deposit",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"wallet",
+								"deposit"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Event Management",
+			"item": [
+				{
+					"name": "Create Test Events",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Use first user as admin to create events",
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"const eventIndex = pm.collectionVariables.get('eventIndex') || 0;",
+									"",
+									"const events = [",
+									"    {",
+									"        title: \"Bitcoin Price Prediction: Will BTC reach $100K by 2025?\",",
+									"        description: \"Predict whether Bitcoin will reach $100,000 USD by end of 2025\",",
+									"        category: \"cryptocurrency\",",
+									"        end_time: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),",
+									"        min_bet_amount: 5.00,",
+									"        max_bet_amount: 1000.00",
+									"    },",
+									"    {",
+									"        title: \"US Presidential Election 2024 Winner\",",
+									"        description: \"Who will win the 2024 US Presidential Election?\",",
+									"        category: \"politics\",",
+									"        end_time: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),",
+									"        min_bet_amount: 10.00,",
+									"        max_bet_amount: 500.00",
+									"    },",
+									"    {",
+									"        title: \"Tesla Stock Price by Q2 2025\",",
+									"        description: \"Will Tesla stock price exceed $400 by Q2 2025?\",",
+									"        category: \"stocks\",",
+									"        end_time: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString(),",
+									"        min_bet_amount: 20.00,",
+									"        max_bet_amount: 2000.00",
+									"    },",
+									"    {",
+									"        title: \"FIFA World Cup 2026 Winner\",",
+									"        description: \"Which country will win the FIFA World Cup 2026?\",",
+									"        category: \"sports\",",
+									"        end_time: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),",
+									"        min_bet_amount: 5.00,",
+									"        max_bet_amount: 300.00",
+									"    },",
+									"    {",
+									"        title: \"Ethereum Price vs Bitcoin: End of 2024\",",
+									"        description: \"Will ETH/BTC ratio be above 0.1 by end of 2024?\",",
+									"        category: \"cryptocurrency\",",
+									"        end_time: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),",
+									"        min_bet_amount: 10.00,",
+									"        max_bet_amount: 800.00",
+									"    }",
+									"];",
+									"",
+									"if (eventIndex < events.length) {",
+									"    pm.variables.set('eventData', JSON.stringify(events[eventIndex]));",
+									"    pm.collectionVariables.set('eventIndex', eventIndex);",
+									"    pm.request.headers.add({",
+									"        key: 'Authorization',",
+									"        value: `Bearer ${users[0].token}`",
+									"    });",
+									"    console.log(`Creating event ${eventIndex + 1}: ${events[eventIndex].title}`);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const eventIndex = pm.collectionVariables.get('eventIndex');",
+									"const activeEvents = JSON.parse(pm.collectionVariables.get('activeEvents'));",
+									"",
+									"if (pm.response.code === 201) {",
+									"    const responseData = pm.response.json();",
+									"    activeEvents.push(responseData.event);",
+									"    pm.collectionVariables.set('activeEvents', JSON.stringify(activeEvents));",
+									"    ",
+									"    pm.test(`Event ${eventIndex + 1} created successfully`, function () {",
+									"        pm.expect(pm.response.code).to.equal(201);",
+									"        pm.expect(responseData.event).to.have.property('id');",
+									"    });",
+									"    ",
+									"    console.log(`Event created with ID: ${responseData.event.id}`);",
+									"}",
+									"",
+									"// Continue creating events or move to update status",
+									"if (eventIndex + 1 < 5) {",
+									"    pm.collectionVariables.set('eventIndex', eventIndex + 1);",
+									"    postman.setNextRequest('Create Test Events');",
+									"} else {",
+									"    pm.collectionVariables.set('eventIndex', 0);",
+									"    postman.setNextRequest('Update Events to Active');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{{eventData}}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/events/create",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"events",
+								"create"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Events to Active",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"const activeEvents = JSON.parse(pm.collectionVariables.get('activeEvents'));",
+									"const eventIndex = pm.collectionVariables.get('eventIndex');",
+									"",
+									"if (activeEvents[eventIndex]) {",
+									"    pm.variables.set('eventId', activeEvents[eventIndex].id);",
+									"    pm.request.headers.add({",
+									"        key: 'Authorization',",
+									"        value: `Bearer ${users[0].token}`",
+									"    });",
+									"    console.log(`Updating event ${activeEvents[eventIndex].id} to active`);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const eventIndex = pm.collectionVariables.get('eventIndex');",
+									"const activeEvents = JSON.parse(pm.collectionVariables.get('activeEvents'));",
+									"",
+									"if (pm.response.code === 200) {",
+									"    pm.test(`Event ${eventIndex + 1} updated to active`, function () {",
+									"        pm.expect(pm.response.code).to.equal(200);",
+									"    });",
+									"    console.log(`Event ${activeEvents[eventIndex].id} is now active`);",
+									"}",
+									"",
+									"// Continue updating events or move to create options",
+									"if (eventIndex + 1 < activeEvents.length) {",
+									"    pm.collectionVariables.set('eventIndex', eventIndex + 1);",
+									"    postman.setNextRequest('Update Events to Active');",
+									"} else {",
+									"    pm.collectionVariables.set('eventIndex', 0);",
+									"    postman.setNextRequest('Create Event Options');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"active\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/events/{{eventId}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"events",
+								"{{eventId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Event Options",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"const activeEvents = JSON.parse(pm.collectionVariables.get('activeEvents'));",
+									"const eventIndex = pm.collectionVariables.get('eventIndex');",
+									"const optionIndex = pm.collectionVariables.get('optionIndex') || 0;",
+									"",
+									"const options = [",
+									"    [\"Yes\", \"No\"],",
+									"    [\"Democrat\", \"Republican\", \"Independent\"],",
+									"    [\"Above $400\", \"Below $400\"],",
+									"    [\"Brazil\", \"France\", \"Argentina\", \"Germany\", \"Spain\"],",
+									"    [\"Yes, above 0.1\", \"No, below 0.1\"]",
+									"];",
+									"",
+									"if (activeEvents[eventIndex] && options[eventIndex] && options[eventIndex][optionIndex]) {",
+									"    const optionData = {",
+									"        event_id: activeEvents[eventIndex].id,",
+									"        option_text: options[eventIndex][optionIndex]",
+									"    };",
+									"    pm.variables.set('optionData', JSON.stringify(optionData));",
+									"    pm.collectionVariables.set('optionIndex', optionIndex);",
+									"    pm.request.headers.add({",
+									"        key: 'Authorization',",
+									"        value: `Bearer ${users[0].token}`",
+									"    });",
+									"    console.log(`Creating option '${options[eventIndex][optionIndex]}' for event ${activeEvents[eventIndex].id}`);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const eventIndex = pm.collectionVariables.get('eventIndex');",
+									"const optionIndex = pm.collectionVariables.get('optionIndex');",
+									"const activeEvents = JSON.parse(pm.collectionVariables.get('activeEvents'));",
+									"",
+									"const options = [",
+									"    [\"Yes\", \"No\"],",
+									"    [\"Democrat\", \"Republican\", \"Independent\"],",
+									"    [\"Above $400\", \"Below $400\"],",
+									"    [\"Brazil\", \"France\", \"Argentina\", \"Germany\", \"Spain\"],",
+									"    [\"Yes, above 0.1\", \"No, below 0.1\"]",
+									"];",
+									"",
+									"if (pm.response.code === 201) {",
+									"    pm.test(`Option created successfully`, function () {",
+									"        pm.expect(pm.response.code).to.equal(201);",
+									"    });",
+									"}",
+									"",
+									"// Continue creating options or move to next event",
+									"if (optionIndex + 1 < options[eventIndex].length) {",
+									"    pm.collectionVariables.set('optionIndex', optionIndex + 1);",
+									"    postman.setNextRequest('Create Event Options');",
+									"} else if (eventIndex + 1 < activeEvents.length) {",
+									"    pm.collectionVariables.set('eventIndex', eventIndex + 1);",
+									"    pm.collectionVariables.set('optionIndex', 0);",
+									"    postman.setNextRequest('Create Event Options');",
+									"} else {",
+									"    console.log('All events and options created');",
+									"    postman.setNextRequest('Get Active Events');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{{optionData}}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/event-options/create",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"event-options",
+								"create"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Active Events",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Events retrieved successfully\", function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"",
+									"const responseData = pm.response.json();",
+									"const events = responseData.data;",
+									"",
+									"// Find the most popular event (we'll use a random one for demo)",
+									"if (events && events.length > 0) {",
+									"    // In a real scenario, you'd sort by total_volume or bet count",
+									"    const randomIndex = Math.floor(Math.random() * Math.min(3, events.length));",
+									"    const mostPopularEvent = events[randomIndex];",
+									"    ",
+									"    pm.collectionVariables.set('mostPopularEvent', JSON.stringify(mostPopularEvent));",
+									"    console.log(`Selected event for betting: ${mostPopularEvent.title}`);",
+									"    ",
+									"    // Reset user index for betting",
+									"    pm.collectionVariables.set('currentUserIndex', 0);",
+									"    postman.setNextRequest('Place Bets on Popular Event');",
+									"} else {",
+									"    console.error('No active events found');",
+									"    postman.setNextRequest(null);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/events?page=1&limit=10&status=active",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"events"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "status",
+									"value": "active"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Betting Operations",
+			"item": [
+				{
+					"name": "Place Bets on Popular Event",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"const currentIndex = pm.collectionVariables.get('currentUserIndex');",
+									"const mostPopularEvent = JSON.parse(pm.collectionVariables.get('mostPopularEvent'));",
+									"const minBet = pm.collectionVariables.get('minBetAmount');",
+									"const maxBet = pm.collectionVariables.get('maxBetAmount');",
+									"",
+									"if (mostPopularEvent && mostPopularEvent.options && mostPopularEvent.options.length > 0) {",
+									"    // Select a random option",
+									"    const randomOption = mostPopularEvent.options[Math.floor(Math.random() * mostPopularEvent.options.length)];",
+									"    ",
+									"    // Generate random bet amount",
+									"    const betAmount = Math.floor(Math.random() * (maxBet - minBet + 1)) + minBet;",
+									"    const quantity = Math.floor(betAmount / (randomOption.current_price || 50));",
+									"    ",
+									"    const betData = {",
+									"        event_id: mostPopularEvent.id,",
+									"        option_id: randomOption.id,",
+									"        quantity: Math.max(1, quantity),",
+									"        price_per_share: parseFloat(randomOption.current_price) || 50",
+									"    };",
+									"    ",
+									"    pm.variables.set('betData', JSON.stringify(betData));",
+									"    pm.request.headers.add({",
+									"        key: 'Authorization',",
+									"        value: `Bearer ${users[currentIndex].token}`",
+									"    });",
+									"    ",
+									"    console.log(`User ${currentIndex + 1} betting on '${randomOption.option_text}' in '${mostPopularEvent.title}'`);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const currentIndex = pm.collectionVariables.get('currentUserIndex');",
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"",
+									"if (pm.response.code === 200) {",
+									"    const responseData = pm.response.json();",
+									"    ",
+									"    // Store bet info",
+									"    users[currentIndex].bets.push(responseData.bet);",
+									"    users[currentIndex].wallet_balance = responseData.wallet_balance;",
+									"    pm.collectionVariables.set('users', JSON.stringify(users));",
+									"    ",
+									"    pm.test(`User ${currentIndex + 1} placed bet successfully`, function () {",
+									"        pm.expect(pm.response.code).to.equal(200);",
+									"        pm.expect(responseData.success).to.be.true;",
+									"    });",
+									"    ",
+									"    console.log(`Bet placed. New balance: $${responseData.wallet_balance}`);",
+									"} else {",
+									"    console.error(`Failed to place bet for user ${currentIndex + 1}:`, pm.response.text());",
+									"}",
+									"",
+									"// Continue betting with more users (let's do 70% of users)",
+									"const totalUsers = users.length;",
+									"const usersWhoShouldBet = Math.floor(totalUsers * 0.7);",
+									"",
+									"if (currentIndex + 1 < usersWhoShouldBet) {",
+									"    pm.collectionVariables.set('currentUserIndex', currentIndex + 1);",
+									"    postman.setNextRequest('Place Bets on Popular Event');",
+									"} else {",
+									"    console.log(`${usersWhoShouldBet} users have placed bets`);",
+									"    pm.collectionVariables.set('currentUserIndex', 0);",
+									"    postman.setNextRequest('Check User Bets');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{{betData}}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/bets/place",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"bets",
+								"place"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Check User Bets",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"const currentIndex = pm.collectionVariables.get('currentUserIndex');",
+									"",
+									"// Only check bets for users who placed bets",
+									"if (users[currentIndex].bets.length > 0) {",
+									"    pm.request.headers.add({",
+									"        key: 'Authorization',",
+									"        value: `Bearer ${users[currentIndex].token}`",
+									"    });",
+									"    console.log(`Checking bets for user ${currentIndex + 1}`);",
+									"} else {",
+									"    console.log(`User ${currentIndex + 1} has no bets, skipping`);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const currentIndex = pm.collectionVariables.get('currentUserIndex');",
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"",
+									"if (users[currentIndex].bets.length > 0 && pm.response.code === 200) {",
+									"    const responseData = pm.response.json();",
+									"    ",
+									"    pm.test(`Retrieved bets for user ${currentIndex + 1}`, function () {",
+									"        pm.expect(pm.response.code).to.equal(200);",
+									"        pm.expect(responseData.success).to.be.true;",
+									"        pm.expect(responseData.bets).to.be.an('array');",
+									"    });",
+									"    ",
+									"    if (responseData.summary) {",
+									"        console.log(`User ${currentIndex + 1} betting summary: Total invested: $${responseData.summary.total_invested}, Current value: $${responseData.summary.current_value}, P&L: $${responseData.summary.total_pnl}`);",
+									"    }",
+									"}",
+									"",
+									"// Continue checking bets for more users",
+									"if (currentIndex + 1 < users.length) {",
+									"    pm.collectionVariables.set('currentUserIndex', currentIndex + 1);",
+									"    postman.setNextRequest('Check User Bets');",
+									"} else {",
+									"    pm.collectionVariables.set('currentUserIndex', 0);",
+									"    postman.setNextRequest('Check User Portfolio');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/bets/my-bets?page=1&limit=10",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"bets",
+								"my-bets"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Check User Portfolio",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"const currentIndex = pm.collectionVariables.get('currentUserIndex');",
+									"",
+									"pm.request.headers.add({",
+									"    key: 'Authorization',",
+									"    value: `Bearer ${users[currentIndex].token}`",
+									"});",
+									"console.log(`Checking portfolio for user ${currentIndex + 1}`);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const currentIndex = pm.collectionVariables.get('currentUserIndex');",
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"",
+									"if (pm.response.code === 200) {",
+									"    const responseData = pm.response.json();",
+									"    ",
+									"    // Store portfolio data",
+									"    users[currentIndex].portfolio = responseData.portfolio;",
+									"    pm.collectionVariables.set('users', JSON.stringify(users));",
+									"    ",
+									"    pm.test(`Retrieved portfolio for user ${currentIndex + 1}`, function () {",
+									"        pm.expect(pm.response.code).to.equal(200);",
+									"        pm.expect(responseData.success).to.be.true;",
+									"        pm.expect(responseData.portfolio).to.be.an('object');",
+									"    });",
+									"    ",
+									"    console.log(`User ${currentIndex + 1} portfolio: Wallet: $${responseData.portfolio.wallet_balance}, Invested: $${responseData.portfolio.total_invested}, Current: $${responseData.portfolio.current_value}, P&L: $${responseData.portfolio.total_pnl}`);",
+									"}",
+									"",
+									"// Continue checking portfolios",
+									"if (currentIndex + 1 < users.length) {",
+									"    pm.collectionVariables.set('currentUserIndex', currentIndex + 1);",
+									"    postman.setNextRequest('Check User Portfolio');",
+									"} else {",
+									"    pm.collectionVariables.set('currentUserIndex', 0);",
+									"    postman.setNextRequest('Check Event Live Prices');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/portfolio",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"portfolio"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Check Event Live Prices",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"const mostPopularEvent = JSON.parse(pm.collectionVariables.get('mostPopularEvent'));",
+									"",
+									"// Use any user token to check prices",
+									"pm.request.headers.add({",
+									"    key: 'Authorization',",
+									"    value: `Bearer ${users[0].token}`",
+									"});",
+									"",
+									"pm.variables.set('eventId', mostPopularEvent.id);",
+									"console.log(`Checking live prices for event: ${mostPopularEvent.title}`);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Event options and prices retrieved\", function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"",
+									"const responseData = pm.response.json();",
+									"const mostPopularEvent = JSON.parse(pm.collectionVariables.get('mostPopularEvent'));",
+									"",
+									"if (responseData.data) {",
+									"    console.log(`\\nLive prices for '${mostPopularEvent.title}':`);",
+									"    responseData.data.forEach(option => {",
+									"        console.log(`  ${option.option_text}: $${option.current_price} (Total backing: $${option.total_backing})`);",
+									"    });",
+									"}",
+									"",
+									"// Generate summary report",
+									"const users = JSON.parse(pm.collectionVariables.get('users'));",
+									"let totalDeposited = 0;",
+									"let totalInvested = 0;",
+									"let totalCurrentValue = 0;",
+									"let totalPnL = 0;",
+									"let usersWithBets = 0;",
+									"",
+									"users.forEach(user => {",
+									"    if (user.portfolio) {",
+									"        totalDeposited += parseFloat(user.wallet_balance) || 0;",
+									"        totalInvested += parseFloat(user.portfolio.total_invested) || 0;",
+									"        totalCurrentValue += parseFloat(user.portfolio.current_value) || 0;",
+									"        totalPnL += parseFloat(user.portfolio.total_pnl) || 0;",
+									"        if (user.bets.length > 0) usersWithBets++;",
+									"    }",
+									"});",
+									"",
+									"console.log(`\\n========== AUTOMATION SUMMARY ==========`);",
+									"console.log(`Total users created: ${users.length}`);",
+									"console.log(`Users who placed bets: ${usersWithBets}`);",
+									"console.log(`Total amount deposited: $${totalDeposited.toFixed(2)}`);",
+									"console.log(`Total amount invested in bets: $${totalInvested.toFixed(2)}`);",
+									"console.log(`Total current value of bets: $${totalCurrentValue.toFixed(2)}`);",
+									"console.log(`Total P&L: $${totalPnL.toFixed(2)}`);",
+									"console.log(`Average P&L per betting user: $${(totalPnL / usersWithBets).toFixed(2)}`);",
+									"console.log(`========================================\\n`);",
+									"",
+									"// End of automation",
+									"postman.setNextRequest(null);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/events/{{eventId}}/options?page=1&limit=10",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"events",
+								"{{eventId}}",
+								"options"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					"// Global pre-request script",
+					"// This runs before every request in the collection"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					"// Global test script",
+					"// This runs after every request in the collection"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "BASE_URL",
+			"value": "http://localhost:8080",
+			"type": "string"
+		}
+	]
+} 
