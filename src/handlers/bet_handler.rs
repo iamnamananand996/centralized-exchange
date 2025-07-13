@@ -2,20 +2,23 @@ use crate::types::bet::{
     ActivePosition, BetResponse, BetsSummary, EventSummary, MyBetResponse, MyBetsQuery,
     OptionSummary, PlaceBetRequest, PortfolioResponse, PositionDetail,
 };
+use crate::utils::cache::{cache_keys, create_cache_key, CacheService};
 use crate::utils::pagination::{PaginatedResponse, PaginationInfo};
-use crate::utils::cache::{CacheService, create_cache_key, cache_keys};
+use crate::websocket::server::WebSocketServer;
+use actix::Addr;
 use actix_web::{web, Error, HttpResponse, Result};
+use deadpool_redis::Pool;
 use entity::{bets, event_options, events, users};
 use sea_orm::{
     prelude::Decimal, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, QueryTrait, Set,
 };
 use serde_json::json;
-use deadpool_redis::Pool;
 
 pub async fn place_bet(
     db: web::Data<DatabaseConnection>,
     redis_pool: web::Data<Pool>,
+    ws_server: web::Data<Addr<WebSocketServer>>,
     req: web::Json<PlaceBetRequest>,
     user_id: web::ReqData<String>,
 ) -> Result<HttpResponse, Error> {
@@ -184,9 +187,8 @@ pub async fn place_bet(
     let user_cache_key = create_cache_key(cache_keys::USER_PREFIX, &user_id_int.to_string());
     let event_cache_key = create_cache_key(cache_keys::EVENT_PREFIX, &req.event_id.to_string());
     let option_cache_key = format!("event_option:{}", req.option_id);
-    let bets_cache_key = format!("bets:{}:*", user_id_int);
     let portfolio_cache_key = format!("portfolio:{}", user_id_int);
-    
+
     // Delete relevant caches
     if let Err(e) = cache_service.delete(&user_cache_key).await {
         log::warn!("Failed to invalidate user cache: {}", e);
@@ -200,6 +202,34 @@ pub async fn place_bet(
     if let Err(e) = cache_service.delete(&portfolio_cache_key).await {
         log::warn!("Failed to invalidate portfolio cache: {}", e);
     }
+
+    // Notify subscribers via WebSocket
+    let user_id_int = user_id_str.parse::<i32>().unwrap_or(0);
+
+    // Send personalized updates to WebSocket subscribers
+    ws_server.do_send(crate::websocket::server::BroadcastMyBetsUpdate {
+        user_id: user_id_int,
+    });
+
+    // Broadcast portfolio update (no pagination, so use existing method)
+    let handlers =
+        crate::websocket::handlers::WebSocketHandlers::new(db.clone(), ws_server.get_ref().clone());
+
+    // Clone event_id for the async block
+    let event_id_for_broadcast = req.event_id;
+
+    tokio::spawn(async move {
+        // Update portfolio data for the user
+        handlers.fetch_and_broadcast_portfolio(user_id_int).await;
+
+        // Broadcast to specific event channel (event:24) since bet updated total_volume
+        handlers
+            .fetch_and_broadcast_event(event_id_for_broadcast)
+            .await;
+    });
+
+    // Broadcast events update to all subscribers of the events channel
+    ws_server.do_send(crate::websocket::server::BroadcastEventsUpdate);
 
     Ok(HttpResponse::Ok().json(json!({
         "success": true,
@@ -220,9 +250,10 @@ pub async fn get_my_bets(
         .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
 
     let cache_service = CacheService::new(redis_pool.get_ref().clone());
-    
+
     // Create cache key based on user ID, status filter, and pagination
-    let cache_key = format!("bets:{}:{}:{}:{}", 
+    let cache_key = format!(
+        "bets:{}:{}:{}:{}",
         user_id_int,
         query.status.as_deref().unwrap_or("all"),
         query.pagination.get_page(),

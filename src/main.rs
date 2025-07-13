@@ -3,9 +3,8 @@ use actix_web::{web, App, HttpServer};
 use deadpool_redis::{Config, Pool, Runtime};
 use dotenv::dotenv;
 use migration::sea_orm::{Database, DatabaseConnection};
-use std::time::Duration;
-
 use migration::MigratorTrait;
+use actix::prelude::Actor;
 
 mod constants;
 mod handlers;
@@ -13,6 +12,7 @@ mod middleware;
 mod routes;
 mod types;
 mod utils;
+mod websocket;
 
 // Import the migration module
 use migration::Migrator;
@@ -44,16 +44,25 @@ async fn main() -> std::io::Result<()> {
         .create_pool(Some(Runtime::Tokio1))
         .expect("Failed to create Redis pool");
 
+    // Start WebSocket server
+    let ws_server = websocket::server::WebSocketServer::with_handlers(
+        web::Data::new(db.clone()),
+        web::Data::new(redis_pool.clone())
+    ).start();
+
     let server_address = constants::config::get_server_address();
     println!("🚀 Starting Centralized Exchange API server...");
     println!("📊 Database connected successfully");
     println!("🗄️  Redis cache configured at: {}", redis_url);
     println!("🌐 Server will be available at http://{}", server_address);
+    println!("🔌 WebSocket server started");
+    println!("📡 Real-time updates: Event-driven (only on data changes)");
 
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(db.clone()))
             .app_data(web::Data::new(redis_pool.clone()))
+            .app_data(web::Data::new(ws_server.clone()))
             .wrap(
                 Cors::default()
                     .allowed_origin(&constants::config::get_cors_origin())

@@ -1,20 +1,23 @@
 use crate::types::event_option::{
     CreateEventOptionRequest, EventOptionResponse, UpdateEventOptionRequest,
 };
+use crate::utils::cache::{cache_keys, create_cache_key, CacheService};
 use crate::utils::pagination::{PaginatedResponse, PaginationInfo, PaginationQuery};
-use crate::utils::cache::{CacheService, create_cache_key, cache_keys};
+use crate::websocket::server::WebSocketServer;
+use actix::prelude::*;
 use actix_web::{web, Error, HttpResponse, Result};
+use deadpool_redis::Pool;
 use entity::{event_options, events};
 use sea_orm::{
     prelude::Decimal, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde_json::json;
-use deadpool_redis::Pool;
 
 pub async fn create_event_option(
     db: web::Data<DatabaseConnection>,
     redis_pool: web::Data<Pool>,
+    ws_server: web::Data<Addr<WebSocketServer>>,
     req: web::Json<CreateEventOptionRequest>,
     user_id: web::ReqData<String>,
 ) -> Result<HttpResponse, Error> {
@@ -85,27 +88,45 @@ pub async fn create_event_option(
         actix_web::error::ErrorInternalServerError("Failed to create event option")
     })?;
 
-    let option_response = EventOptionResponse::from(option);
+    // Return success response
+    let option_response = EventOptionResponse::from(option.clone());
+
+    // Broadcast the updated event to all subscribers
+    let handlers =
+        crate::websocket::handlers::WebSocketHandlers::new(db.clone(), ws_server.get_ref().clone());
+
+    // Broadcast to specific event channel
+    let event_id_for_broadcast = req.event_id;
+    tokio::spawn(async move {
+        // Broadcast to specific event channel
+        handlers
+            .fetch_and_broadcast_event(event_id_for_broadcast)
+            .await;
+    });
 
     // Invalidate relevant caches
     let cache_service = CacheService::new(redis_pool.get_ref().clone());
     let event_cache_key = create_cache_key(cache_keys::EVENT_PREFIX, &req.event_id.to_string());
     let options_list_key = format!("event_options:{}:*", req.event_id);
-    
+
     if let Err(e) = cache_service.delete(&event_cache_key).await {
         log::warn!("Failed to invalidate event cache: {}", e);
     }
     // Note: We should ideally have a pattern-based delete, but for now we'll rely on TTL
-    
+
+    // Broadcast personalized events updates to all subscribers of the events channel
+    ws_server.do_send(crate::websocket::server::BroadcastEventsUpdate);
+
     Ok(HttpResponse::Created().json(json!({
         "message": "Event option created successfully",
-        "option": Some(option_response),
+        "option": option_response,
     })))
 }
 
 pub async fn update_event_option(
     db: web::Data<DatabaseConnection>,
     redis_pool: web::Data<Pool>,
+    ws_server: web::Data<Addr<WebSocketServer>>,
     option_id: web::Path<i32>,
     req: web::Json<UpdateEventOptionRequest>,
     user_id: web::ReqData<String>,
@@ -203,7 +224,7 @@ pub async fn update_event_option(
     let cache_service = CacheService::new(redis_pool.get_ref().clone());
     let option_cache_key = format!("event_option:{}", option_id);
     let event_cache_key = create_cache_key(cache_keys::EVENT_PREFIX, &event.id.to_string());
-    
+
     if let Err(e) = cache_service.delete(&option_cache_key).await {
         log::warn!("Failed to invalidate option cache: {}", e);
     }
@@ -211,9 +232,25 @@ pub async fn update_event_option(
         log::warn!("Failed to invalidate event cache: {}", e);
     }
 
+    // Broadcast the updated event to all subscribers
+    let handlers =
+        crate::websocket::handlers::WebSocketHandlers::new(db.clone(), ws_server.get_ref().clone());
+
+    // Broadcast to specific event channel
+    let event_id_for_broadcast = event.id;
+    tokio::spawn(async move {
+        // Broadcast to specific event channel
+        handlers
+            .fetch_and_broadcast_event(event_id_for_broadcast)
+            .await;
+    });
+
+    // Broadcast personalized events updates to all subscribers of the events channel
+    ws_server.do_send(crate::websocket::server::BroadcastEventsUpdate);
+
     Ok(HttpResponse::Ok().json(json!({
         "message": "Event option updated successfully",
-        "option": Some(option_response),
+        "event_option": option_response
     })))
 }
 
@@ -224,9 +261,10 @@ pub async fn list_event_options(
     query: web::Query<PaginationQuery>,
 ) -> Result<HttpResponse, Error> {
     let cache_service = CacheService::new(redis_pool.get_ref().clone());
-    
+
     // Create cache key based on event ID and pagination
-    let cache_key = format!("event_options:{}:{}:{}", 
+    let cache_key = format!(
+        "event_options:{}:{}:{}",
         event_id,
         query.get_page(),
         query.get_limit()

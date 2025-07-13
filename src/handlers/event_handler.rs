@@ -1,19 +1,22 @@
 use crate::types::event::{CreateEventRequest, EventResponse, ListEventsQuery, UpdateEventRequest};
+use crate::utils::cache::{cache_keys, create_cache_key, CacheService};
 use crate::utils::pagination::{PaginatedResponse, PaginationInfo};
-use crate::utils::cache::{CacheService, create_cache_key, cache_keys};
+use crate::websocket::server::WebSocketServer;
+use actix::Addr;
 use actix_web::{web, Error, HttpResponse, Result};
 use chrono::Utc;
+use deadpool_redis::Pool;
 use entity::{event_options, events};
 use sea_orm::{
     prelude::Decimal, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde_json::json;
-use deadpool_redis::Pool;
 
 pub async fn create_event(
     db: web::Data<DatabaseConnection>,
     redis_pool: web::Data<Pool>,
+    ws_server: web::Data<Addr<WebSocketServer>>,
     req: web::Json<CreateEventRequest>,
     user_id: web::ReqData<String>,
 ) -> Result<HttpResponse, Error> {
@@ -71,15 +74,29 @@ pub async fn create_event(
             actix_web::error::ErrorInternalServerError("Database error occurred")
         })?;
 
-    let event_response = EventResponse::from((event, options));
+    let event_response = EventResponse::from((event.clone(), options));
 
     // Invalidate events list cache
     let cache_service = CacheService::new(redis_pool.get_ref().clone());
-    let events_list_pattern = format!("{}:*", cache_keys::EVENT_PREFIX);
     // Note: We should ideally have a pattern-based delete, but for now we'll rely on TTL
     if let Err(e) = cache_service.delete("events:list").await {
         log::warn!("Failed to invalidate events list cache: {}", e);
     }
+
+    // Broadcast to specific event channel
+    let handlers =
+        crate::websocket::handlers::WebSocketHandlers::new(db.clone(), ws_server.get_ref().clone());
+
+    let event_id_for_broadcast = event.id;
+    tokio::spawn(async move {
+        // Broadcast to specific event channel
+        handlers
+            .fetch_and_broadcast_event(event_id_for_broadcast)
+            .await;
+    });
+
+    // Broadcast the new event to all subscribers of the events channel
+    ws_server.do_send(crate::websocket::server::BroadcastEventsUpdate);
 
     Ok(HttpResponse::Created().json(json!({
         "message": "Event created successfully",
@@ -90,6 +107,7 @@ pub async fn create_event(
 pub async fn update_event(
     db: web::Data<DatabaseConnection>,
     redis_pool: web::Data<Pool>,
+    ws_server: web::Data<Addr<WebSocketServer>>,
     event_id: web::Path<i32>,
     req: web::Json<UpdateEventRequest>,
     user_id: web::ReqData<String>,
@@ -203,7 +221,7 @@ pub async fn update_event(
             actix_web::error::ErrorInternalServerError("Database error occurred")
         })?;
 
-    let event_response = EventResponse::from((updated_event, options));
+    let event_response = EventResponse::from((updated_event.clone(), options));
 
     // Invalidate relevant caches
     let cache_service = CacheService::new(redis_pool.get_ref().clone());
@@ -214,6 +232,21 @@ pub async fn update_event(
     if let Err(e) = cache_service.delete("events:list").await {
         log::warn!("Failed to invalidate events list cache: {}", e);
     }
+
+    // Broadcast to specific event channel
+    let handlers =
+        crate::websocket::handlers::WebSocketHandlers::new(db.clone(), ws_server.get_ref().clone());
+
+    let event_id_for_broadcast = updated_event.id;
+    tokio::spawn(async move {
+        // Broadcast to specific event channel (event:24)
+        handlers
+            .fetch_and_broadcast_event(event_id_for_broadcast)
+            .await;
+    });
+
+    // Broadcast the updated event to all subscribers of the events channel
+    ws_server.do_send(crate::websocket::server::BroadcastEventsUpdate);
 
     Ok(HttpResponse::Ok().json(json!({
         "message": "Event updated successfully",
@@ -227,9 +260,10 @@ pub async fn list_events(
     query: web::Query<ListEventsQuery>,
 ) -> Result<HttpResponse, Error> {
     let cache_service = CacheService::new(redis_pool.get_ref().clone());
-    
+
     // Create cache key based on query parameters
-    let cache_key = format!("events:list:{}:{}:{}:{}", 
+    let cache_key = format!(
+        "events:list:{}:{}:{}:{}",
         query.status.as_deref().unwrap_or("all"),
         query.category.as_deref().unwrap_or("all"),
         query.pagination.get_page(),

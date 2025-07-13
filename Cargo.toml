@@ -28,3 +28,6 @@ futures-util = "0.3.31"
 rust_decimal = "1.32"
 redis = { version = "0.25", features = ["tokio-comp"] }
 deadpool-redis = "0.15"
+actix-web-actors = "4.2"
+actix = "0.13"
+futures = "0.3"

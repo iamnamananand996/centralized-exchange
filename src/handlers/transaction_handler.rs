@@ -1,7 +1,10 @@
 use crate::types::transaction::{DepositRequest, TransactionResponse, WithdrawRequest};
+use crate::utils::cache::{cache_keys, create_cache_key, CacheService};
 use crate::utils::pagination::{PaginatedResponse, PaginationInfo, PaginationQuery};
-use crate::utils::cache::{CacheService, create_cache_key, cache_keys};
+use crate::websocket::server::WebSocketServer;
+use actix::Addr;
 use actix_web::{web, Error, HttpResponse, Result};
+use deadpool_redis::Pool;
 use entity::{transaction, users};
 use rust_decimal::Decimal as RustDecimal;
 use sea_orm::prelude::Decimal;
@@ -11,20 +14,20 @@ use sea_orm::{
 };
 use serde_json::json;
 use uuid::Uuid;
-use deadpool_redis::Pool;
 
 pub async fn deposit_money(
     db: web::Data<DatabaseConnection>,
     redis_pool: web::Data<Pool>,
+    ws_server: web::Data<Addr<WebSocketServer>>,
+    req: web::Json<DepositRequest>,
     user_id: web::ReqData<String>,
-    request: web::Json<DepositRequest>,
 ) -> Result<HttpResponse, Error> {
     let user_id_str = &*user_id;
     let user_id: i32 = user_id_str
         .parse()
         .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
 
-    let amount = request.amount;
+    let amount = req.amount;
     if amount <= 0.0 {
         return Ok(HttpResponse::BadRequest().json(json!({
             "message": "Amount must be greater than 0".to_string(),
@@ -112,15 +115,31 @@ pub async fn deposit_money(
     // Invalidate relevant caches
     let cache_service = CacheService::new(redis_pool.get_ref().clone());
     let user_cache_key = create_cache_key(cache_keys::USER_PREFIX, &user_id.to_string());
-    let transaction_cache_key = format!("transactions:{}:*", user_id);
     let portfolio_cache_key = format!("portfolio:{}", user_id);
-    
+
     if let Err(e) = cache_service.delete(&user_cache_key).await {
         log::warn!("Failed to invalidate user cache: {}", e);
     }
     if let Err(e) = cache_service.delete(&portfolio_cache_key).await {
         log::warn!("Failed to invalidate portfolio cache: {}", e);
     }
+
+    // Notify subscribers via WebSocket
+    let user_id_int = user_id_str.parse::<i32>().unwrap_or(0);
+
+    // Send personalized updates to WebSocket subscribers
+    ws_server.do_send(crate::websocket::server::BroadcastTransactionsUpdate {
+        user_id: user_id_int,
+    });
+
+    // Broadcast portfolio update (no pagination, so use existing method)
+    let handlers =
+        crate::websocket::handlers::WebSocketHandlers::new(db.clone(), ws_server.get_ref().clone());
+
+    tokio::spawn(async move {
+        // Update portfolio data for the user (since balance changed)
+        handlers.fetch_and_broadcast_portfolio(user_id_int).await;
+    });
 
     Ok(HttpResponse::Ok().json(json!({
         "message": "Deposit successful".to_string(),
@@ -137,15 +156,16 @@ pub async fn deposit_money(
 pub async fn withdraw_money(
     db: web::Data<DatabaseConnection>,
     redis_pool: web::Data<Pool>,
+    ws_server: web::Data<Addr<WebSocketServer>>,
+    req: web::Json<WithdrawRequest>,
     user_id: web::ReqData<String>,
-    request: web::Json<WithdrawRequest>,
 ) -> Result<HttpResponse, Error> {
     let user_id_str = &*user_id;
     let user_id: i32 = user_id_str
         .parse()
         .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
 
-    let amount = request.amount;
+    let amount = req.amount;
     if amount <= 0.0 {
         return Ok(HttpResponse::BadRequest().json(json!({
             "message": "Amount must be greater than 0".to_string(),
@@ -241,15 +261,31 @@ pub async fn withdraw_money(
     // Invalidate relevant caches
     let cache_service = CacheService::new(redis_pool.get_ref().clone());
     let user_cache_key = create_cache_key(cache_keys::USER_PREFIX, &user_id.to_string());
-    let transaction_cache_key = format!("transactions:{}:*", user_id);
     let portfolio_cache_key = format!("portfolio:{}", user_id);
-    
+
     if let Err(e) = cache_service.delete(&user_cache_key).await {
         log::warn!("Failed to invalidate user cache: {}", e);
     }
     if let Err(e) = cache_service.delete(&portfolio_cache_key).await {
         log::warn!("Failed to invalidate portfolio cache: {}", e);
     }
+
+    // Notify subscribers via WebSocket
+    let user_id_int = user_id_str.parse::<i32>().unwrap_or(0);
+
+    // Send personalized updates to WebSocket subscribers
+    ws_server.do_send(crate::websocket::server::BroadcastTransactionsUpdate {
+        user_id: user_id_int,
+    });
+
+    // Broadcast portfolio update (no pagination, so use existing method)
+    let handlers =
+        crate::websocket::handlers::WebSocketHandlers::new(db.clone(), ws_server.get_ref().clone());
+
+    tokio::spawn(async move {
+        // Update portfolio data for the user (since balance changed)
+        handlers.fetch_and_broadcast_portfolio(user_id_int).await;
+    });
 
     Ok(HttpResponse::Ok().json(json!({
         "message": "Withdrawal successful".to_string(),
@@ -275,9 +311,10 @@ pub async fn get_transaction_history(
         .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
 
     let cache_service = CacheService::new(redis_pool.get_ref().clone());
-    
+
     // Create cache key based on user ID and pagination
-    let cache_key = format!("transactions:{}:{}:{}", 
+    let cache_key = format!(
+        "transactions:{}:{}:{}",
         user_id,
         query.get_page(),
         query.get_limit()

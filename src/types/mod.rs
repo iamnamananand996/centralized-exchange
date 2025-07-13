@@ -5,3 +5,4 @@ pub mod event;
 pub mod event_option;
 pub mod transaction;
 pub mod user;
+pub mod websocket;

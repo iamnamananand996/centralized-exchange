@@ -1,6 +1,5 @@
-use deadpool_redis::{redis::AsyncCommands, Connection, Pool};
+use deadpool_redis::{redis::AsyncCommands, Pool};
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 pub struct CacheService {
     pool: Pool,
@@ -12,7 +11,7 @@ impl CacheService {
     }
 
     /// Get a value from cache
-    pub async fn get<T>(&self, key: &str) -> Result<Option<T>, Box<dyn std::error::Error>>
+    pub async fn get<T>(&self, key: &str) -> Result<Option<T>, Box<dyn std::error::Error + Send + Sync>>
     where
         T: for<'de> Deserialize<'de>,
     {
@@ -34,13 +33,13 @@ impl CacheService {
         key: &str,
         value: &T,
         ttl_seconds: u64,
-    ) -> Result<(), Box<dyn std::error::Error>>
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
     where
         T: Serialize,
     {
         let mut conn = self.pool.get().await?;
         let json_str = serde_json::to_string(value)?;
-        conn.set_ex(key, json_str, ttl_seconds).await?;
+        conn.set_ex::<_, _, ()>(key, json_str, ttl_seconds).await?;
         Ok(())
     }
 
@@ -49,25 +48,25 @@ impl CacheService {
         &self,
         key: &str,
         value: &T,
-    ) -> Result<(), Box<dyn std::error::Error>>
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
     where
         T: Serialize,
     {
         let mut conn = self.pool.get().await?;
         let json_str = serde_json::to_string(value)?;
-        conn.set(key, json_str).await?;
+        conn.set::<_, _, ()>(key, json_str).await?;
         Ok(())
     }
 
     /// Delete a key from cache
-    pub async fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut conn = self.pool.get().await?;
-        conn.del(key).await?;
+        conn.del::<_, ()>(key).await?;
         Ok(())
     }
 
     /// Check if a key exists in cache
-    pub async fn exists(&self, key: &str) -> Result<bool, Box<dyn std::error::Error>> {
+    pub async fn exists(&self, key: &str) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let mut conn = self.pool.get().await?;
         let exists: bool = conn.exists(key).await?;
         Ok(exists)
@@ -78,14 +77,14 @@ impl CacheService {
         &self,
         key: &str,
         ttl_seconds: u64,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut conn = self.pool.get().await?;
-        conn.expire(key, ttl_seconds as i64).await?;
+        conn.expire::<_, ()>(key, ttl_seconds as i64).await?;
         Ok(())
     }
 
     /// Get TTL for a key
-    pub async fn ttl(&self, key: &str) -> Result<i64, Box<dyn std::error::Error>> {
+    pub async fn ttl(&self, key: &str) -> Result<i64, Box<dyn std::error::Error + Send + Sync>> {
         let mut conn = self.pool.get().await?;
         let ttl: i64 = conn.ttl(key).await?;
         Ok(ttl)
@@ -96,7 +95,7 @@ impl CacheService {
         &self,
         key: &str,
         increment: i64,
-    ) -> Result<i64, Box<dyn std::error::Error>> {
+    ) -> Result<i64, Box<dyn std::error::Error + Send + Sync>> {
         let mut conn = self.pool.get().await?;
         let result: i64 = conn.incr(key, increment).await?;
         Ok(result)
@@ -107,7 +106,7 @@ impl CacheService {
         &self,
         key: &str,
         decrement: i64,
-    ) -> Result<i64, Box<dyn std::error::Error>> {
+    ) -> Result<i64, Box<dyn std::error::Error + Send + Sync>> {
         let mut conn = self.pool.get().await?;
         let result: i64 = conn.incr(key, -decrement).await?;
         Ok(result)
