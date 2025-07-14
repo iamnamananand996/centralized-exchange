@@ -101,4 +101,34 @@ impl From<(events::Model, Vec<event_options::Model>)> for EventResponse {
             options: options.into_iter().map(OptionResponse::from).collect(),
         }
     }
+}
+
+#[derive(Deserialize)]
+pub struct SettleEventRequest {
+    pub winning_option_id: i32,
+    pub resolution_note: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct SettlementPayout {
+    pub user_id: i32,
+    pub username: String,
+    pub option_id: i32,
+    pub option_text: String,
+    pub shares_held: i32,
+    pub payout_per_share: Decimal,
+    pub total_payout: Decimal,
+    pub profit_loss: Decimal,
+}
+
+#[derive(Serialize)]
+pub struct SettlementResponse {
+    pub event_id: i32,
+    pub event_title: String,
+    pub winning_option_id: i32,
+    pub winning_option_text: String,
+    pub total_payouts: Decimal,
+    pub total_positions_settled: usize,
+    pub payouts: Vec<SettlementPayout>,
+    pub settlement_timestamp: chrono::NaiveDateTime,
 } 

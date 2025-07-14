@@ -192,6 +192,13 @@ pub struct BroadcastTransactionsUpdate {
     pub user_id: i32,
 }
 
+/// Broadcast portfolio update for a specific user
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct BroadcastPortfolioUpdate {
+    pub user_id: i32,
+}
+
 /// Connect handler
 impl Handler<Connect> for WebSocketServer {
     type Result = usize;
@@ -451,6 +458,44 @@ impl Handler<BroadcastTransactionsUpdate> for WebSocketServer {
                                     .fetch_and_send_initial_transactions(
                                         session_id, user_id, params,
                                     )
+                                    .await;
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Broadcast portfolio update handler - sends personalized portfolio data to each subscriber
+impl Handler<BroadcastPortfolioUpdate> for WebSocketServer {
+    type Result = ();
+
+    fn handle(
+        &mut self,
+        msg: BroadcastPortfolioUpdate,
+        ctx: &mut Context<Self>,
+    ) -> Self::Result {
+        // Get all sessions for this user subscribed to portfolio
+        if let Some(user_sessions) = self.user_sessions.get(&msg.user_id) {
+            for &session_id in user_sessions {
+                // Check if this session is subscribed to portfolio
+                if let Some(sessions) = self.subscriptions.get(&SubscriptionChannel::Portfolio) {
+                    if sessions.contains(&session_id) {
+                        if let (Some(db), Some(_redis_pool)) = (&self.db, &self.redis_pool) {
+                            let db_clone = db.clone();
+                            let ws_server_addr = ctx.address();
+                            let user_id = msg.user_id;
+
+                            tokio::spawn(async move {
+                                let handlers = crate::websocket::handlers::WebSocketHandlers::new(
+                                    db_clone,
+                                    ws_server_addr,
+                                );
+
+                                handlers
+                                    .fetch_and_broadcast_portfolio(user_id)
                                     .await;
                             });
                         }
