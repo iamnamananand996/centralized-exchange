@@ -4,7 +4,6 @@ use actix::Message;
 use crate::types::{
     event::EventResponse,
     transaction::TransactionResponse,
-    bet::{MyBetResponse, PortfolioResponse},
 };
 use crate::utils::pagination::PaginatedResponse;
 
@@ -33,14 +32,9 @@ pub enum WebSocketMessage {
         data: PaginatedResponse<TransactionResponse>,
         timestamp: DateTime<Utc>,
     },
-    #[serde(rename = "my_bets_data")]
-    MyBetsData {
-        data: PaginatedResponse<MyBetResponse>,
-        timestamp: DateTime<Utc>,
-    },
     #[serde(rename = "portfolio_data")]
     PortfolioData {
-        data: PortfolioResponse,
+        data: serde_json::Value, // Will be replaced with position-based portfolio
         timestamp: DateTime<Utc>,
     },
     #[serde(rename = "subscribe")]
@@ -104,7 +98,6 @@ pub enum SubscriptionChannel {
     Events,
     Event(i32),
     Transactions,
-    MyBets,
     Portfolio,
 }
 
@@ -114,7 +107,6 @@ impl std::fmt::Display for SubscriptionChannel {
             SubscriptionChannel::Events => write!(f, "events"),
             SubscriptionChannel::Event(id) => write!(f, "event:{}", id),
             SubscriptionChannel::Transactions => write!(f, "transactions"),
-            SubscriptionChannel::MyBets => write!(f, "my_bets"),
             SubscriptionChannel::Portfolio => write!(f, "portfolio"),
         }
     }
@@ -125,7 +117,6 @@ impl SubscriptionChannel {
         match s {
             "events" => Some(SubscriptionChannel::Events),
             "transactions" => Some(SubscriptionChannel::Transactions),
-            "my_bets" => Some(SubscriptionChannel::MyBets),
             "portfolio" => Some(SubscriptionChannel::Portfolio),
             _ => {
                 if s.starts_with("event:") {

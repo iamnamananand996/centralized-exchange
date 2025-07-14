@@ -4,7 +4,6 @@ mod m20240101_000000_create_users_table;
 mod m20250707_223909_transactions;
 mod m20250708_130208_events;
 mod m20250708_150357_event_options;
-mod m20250708_180522_bets;
 mod m20250109_100000_create_orders_table;
 mod m20250109_110000_create_trades_table;
 mod m20250109_120000_create_user_positions_table;
@@ -19,7 +18,6 @@ impl MigratorTrait for Migrator {
             Box::new(m20250707_223909_transactions::Migration),
             Box::new(m20250708_130208_events::Migration),
             Box::new(m20250708_150357_event_options::Migration),
-            Box::new(m20250708_180522_bets::Migration),
             Box::new(m20250109_100000_create_orders_table::Migration),
             Box::new(m20250109_110000_create_trades_table::Migration),
             Box::new(m20250109_120000_create_user_positions_table::Migration),

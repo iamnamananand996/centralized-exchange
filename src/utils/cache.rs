@@ -123,6 +123,5 @@ pub mod cache_keys {
     pub const USER_PREFIX: &str = "user";
     pub const SESSION_PREFIX: &str = "session";
     pub const EVENT_PREFIX: &str = "event";
-    pub const BET_PREFIX: &str = "bet";
     pub const TRANSACTION_PREFIX: &str = "transaction";
 }

@@ -192,13 +192,6 @@ pub struct BroadcastTransactionsUpdate {
     pub user_id: i32,
 }
 
-/// Broadcast my bets update for a specific user with personalized filters
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct BroadcastMyBetsUpdate {
-    pub user_id: i32,
-}
-
 /// Connect handler
 impl Handler<Connect> for WebSocketServer {
     type Result = usize;
@@ -313,17 +306,6 @@ impl Handler<Subscribe> for WebSocketServer {
                             );
                             handlers
                                 .fetch_and_send_initial_transactions(session_id, user_id, params)
-                                .await;
-                        }
-                    }
-                    SubscriptionChannel::MyBets => {
-                        if let Some(user_id) = user_id {
-                            info!(
-                                "Fetching initial my bets data for user {} and session {}",
-                                user_id, session_id
-                            );
-                            handlers
-                                .fetch_and_send_initial_my_bets(session_id, user_id, params)
                                 .await;
                         }
                     }
@@ -469,46 +451,6 @@ impl Handler<BroadcastTransactionsUpdate> for WebSocketServer {
                                     .fetch_and_send_initial_transactions(
                                         session_id, user_id, params,
                                     )
-                                    .await;
-                            });
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// Broadcast my bets update handler - sends personalized data to each subscriber
-impl Handler<BroadcastMyBetsUpdate> for WebSocketServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: BroadcastMyBetsUpdate, ctx: &mut Context<Self>) -> Self::Result {
-        // Get all sessions for this user subscribed to my_bets
-        if let Some(user_sessions) = self.user_sessions.get(&msg.user_id) {
-            for &session_id in user_sessions {
-                // Check if this session is subscribed to my_bets
-                if let Some(sessions) = self.subscriptions.get(&SubscriptionChannel::MyBets) {
-                    if sessions.contains(&session_id) {
-                        // Get stored parameters for this session
-                        let params = self
-                            .subscription_params
-                            .get(&(session_id, SubscriptionChannel::MyBets))
-                            .cloned();
-
-                        if let Some(db) = &self.db {
-                            let db_clone = db.clone();
-                            let ws_server_addr = ctx.address();
-                            let user_id = msg.user_id;
-
-                            tokio::spawn(async move {
-                                let handlers = crate::websocket::handlers::WebSocketHandlers::new(
-                                    db_clone,
-                                    ws_server_addr,
-                                );
-
-                                handlers
-                                    .fetch_and_send_initial_my_bets(session_id, user_id, params)
                                     .await;
                             });
                         }

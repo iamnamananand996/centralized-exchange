@@ -4,7 +4,7 @@ pub mod user;
 pub mod transaction;
 pub mod event;
 pub mod event_option;
-pub mod bet;
 pub mod websocket;
 pub mod order_book;
 pub mod position;
+pub mod portfolio;
