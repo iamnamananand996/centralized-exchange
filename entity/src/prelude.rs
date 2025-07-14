@@ -3,5 +3,8 @@
 pub use super::bets::Entity as Bets;
 pub use super::event_options::Entity as EventOptions;
 pub use super::events::Entity as Events;
+pub use super::orders::Entity as Orders;
+pub use super::trades::Entity as Trades;
 pub use super::transaction::Entity as Transaction;
+pub use super::user_positions::Entity as UserPositions;
 pub use super::users::Entity as Users;

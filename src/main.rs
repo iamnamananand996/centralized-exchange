@@ -13,6 +13,7 @@ mod routes;
 mod types;
 mod utils;
 mod websocket;
+mod order_book;
 
 // Import the migration module
 use migration::Migrator;
@@ -50,6 +51,13 @@ async fn main() -> std::io::Result<()> {
         web::Data::new(redis_pool.clone())
     ).start();
 
+    // Start the price updater background task
+    order_book::price_updater::start_price_updater(
+        web::Data::new(db.clone()),
+        web::Data::new(redis_pool.clone()),
+        web::Data::new(ws_server.clone()),
+    );
+
     let server_address = constants::config::get_server_address();
     println!("🚀 Starting Centralized Exchange API server...");
     println!("📊 Database connected successfully");
@@ -57,6 +65,7 @@ async fn main() -> std::io::Result<()> {
     println!("🌐 Server will be available at http://{}", server_address);
     println!("🔌 WebSocket server started");
     println!("📡 Real-time updates: Event-driven (only on data changes)");
+    println!("📈 Order book engine initialized with automatic price updates");
 
     HttpServer::new(move || {
         App::new()

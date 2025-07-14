@@ -36,6 +36,12 @@ pub enum Relation {
     Bets,
     #[sea_orm(has_many = "super::event_options::Entity")]
     EventOptions,
+    #[sea_orm(has_many = "super::orders::Entity")]
+    Orders,
+    #[sea_orm(has_many = "super::trades::Entity")]
+    Trades,
+    #[sea_orm(has_many = "super::user_positions::Entity")]
+    UserPositions,
     #[sea_orm(
         belongs_to = "super::users::Entity",
         from = "Column::CreatedBy",
@@ -63,6 +69,24 @@ impl Related<super::bets::Entity> for Entity {
 impl Related<super::event_options::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::EventOptions.def()
+    }
+}
+
+impl Related<super::orders::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Orders.def()
+    }
+}
+
+impl Related<super::trades::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Trades.def()
+    }
+}
+
+impl Related<super::user_positions::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::UserPositions.def()
     }
 }
 

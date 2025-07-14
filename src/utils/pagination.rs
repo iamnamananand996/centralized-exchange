@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PaginationQuery {
-    #[serde(deserialize_with = "deserialize_optional_u64")]
+    #[serde(deserialize_with = "deserialize_optional_u64", serialize_with = "serialize_optional_u64")]
     pub page: Option<u64>,
-    #[serde(deserialize_with = "deserialize_optional_u64")]
+    #[serde(deserialize_with = "deserialize_optional_u64", serialize_with = "serialize_optional_u64")]
     pub limit: Option<u64>,
 }
 
@@ -18,6 +18,16 @@ where
     match opt {
         Some(s) => s.parse::<u64>().map(Some).map_err(Error::custom),
         None => Ok(None),
+    }
+}
+
+fn serialize_optional_u64<S>(value: &Option<u64>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    match value {
+        Some(v) => serializer.serialize_str(&v.to_string()),
+        None => serializer.serialize_none(),
     }
 }
 

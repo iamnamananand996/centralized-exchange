@@ -13,4 +13,6 @@ pub fn configure_routes() -> actix_web::Scope {
         .service(crate::routes::bet::configure_bet_routes())
         .service(crate::routes::bet::configure_portfolio_routes())
         .service(crate::routes::websocket::configure_websocket_routes())
+        .service(crate::routes::order_book::configure_order_book_routes())
+        .service(web::scope("/api").configure(crate::routes::position::config))
 } 

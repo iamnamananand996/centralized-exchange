@@ -28,6 +28,12 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     Events,
+    #[sea_orm(has_many = "super::orders::Entity")]
+    Orders,
+    #[sea_orm(has_many = "super::trades::Entity")]
+    Trades,
+    #[sea_orm(has_many = "super::user_positions::Entity")]
+    UserPositions,
 }
 
 impl Related<super::bets::Entity> for Entity {
@@ -39,6 +45,24 @@ impl Related<super::bets::Entity> for Entity {
 impl Related<super::events::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Events.def()
+    }
+}
+
+impl Related<super::orders::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Orders.def()
+    }
+}
+
+impl Related<super::trades::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Trades.def()
+    }
+}
+
+impl Related<super::user_positions::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::UserPositions.def()
     }
 }
 

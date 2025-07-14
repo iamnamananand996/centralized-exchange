@@ -5,5 +5,8 @@ pub mod prelude;
 pub mod bets;
 pub mod event_options;
 pub mod events;
+pub mod orders;
+pub mod trades;
 pub mod transaction;
+pub mod user_positions;
 pub mod users;
