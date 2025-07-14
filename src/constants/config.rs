@@ -37,3 +37,10 @@ pub fn get_redis_timeout_seconds() -> u64 {
         .parse()
         .unwrap_or(5)
 }
+
+pub fn get_price_update_interval_seconds() -> u64 {
+    env::var("PRICE_UPDATE_INTERVAL_SECONDS")
+        .unwrap_or_else(|_| "300".to_string()) // Default 5 minutes (300 seconds)
+        .parse()
+        .unwrap_or(300)
+}

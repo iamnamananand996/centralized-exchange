@@ -327,14 +327,21 @@ pub async fn place_order(
         })
         .collect();
 
-    // Update event option current price based on order book
-    if let Some(new_price) = order_book.get_predicted_price() {
-        log::info!(
-            "New predicted price for option {}: {}",
-            req.option_id,
-            new_price
-        );
-    }
+    // Update event option price immediately based on order book (event-driven)
+    let db_clone = db.clone();
+    let redis_pool_clone = redis_pool.clone();
+    let ws_server_clone = ws_server.clone();
+    let event_id = req.event_id;
+    let option_id = req.option_id;
+    tokio::spawn(async move {
+        crate::order_book::price_updater::update_option_price_immediately(
+            db_clone,
+            redis_pool_clone,
+            ws_server_clone,
+            event_id,
+            option_id,
+        ).await;
+    });
 
     // Invalidate caches
     let cache_service = CacheService::new(redis_pool.get_ref().clone());
@@ -351,19 +358,6 @@ pub async fn place_order(
     if let Err(e) = cache_service.delete(&order_book_cache_key).await {
         log::warn!("Failed to invalidate order book cache: {}", e);
     }
-
-    // Broadcast updates via WebSocket
-    let handlers =
-        crate::websocket::handlers::WebSocketHandlers::new(db.clone(), ws_server.get_ref().clone());
-
-    let event_id_for_broadcast = req.event_id;
-    tokio::spawn(async move {
-        handlers
-            .fetch_and_broadcast_event(event_id_for_broadcast)
-            .await;
-    });
-
-    ws_server.do_send(crate::websocket::server::BroadcastEventsUpdate);
 
     Ok(HttpResponse::Ok().json(PlaceOrderResponse {
         success: true,
@@ -459,6 +453,20 @@ pub async fn cancel_order(
         log::error!("Failed to update order status in Redis: {}", e);
     }
 
+    // Update event option price immediately based on order book (event-driven)
+    let db_clone = db.clone();
+    let redis_pool_clone = redis_pool.clone();
+    let ws_server_clone = ws_server.clone();
+    tokio::spawn(async move {
+        crate::order_book::price_updater::update_option_price_immediately(
+            db_clone,
+            redis_pool_clone,
+            ws_server_clone,
+            event_id,
+            option_id,
+        ).await;
+    });
+
     // Invalidate caches
     let cache_service = CacheService::new(redis_pool.get_ref().clone());
     let order_book_cache_key = format!("order_book:{}:{}", event_id, option_id);
@@ -466,14 +474,6 @@ pub async fn cancel_order(
     if let Err(e) = cache_service.delete(&order_book_cache_key).await {
         log::warn!("Failed to invalidate order book cache: {}", e);
     }
-
-    // Broadcast updates
-    let handlers =
-        crate::websocket::handlers::WebSocketHandlers::new(db.clone(), ws_server.get_ref().clone());
-
-    tokio::spawn(async move {
-        handlers.fetch_and_broadcast_event(event_id).await;
-    });
 
     Ok(HttpResponse::Ok().json(json!({
         "success": true,
