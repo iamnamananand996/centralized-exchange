@@ -1,6 +1,8 @@
 use crate::types::event::{SettleEventRequest, SettlementResponse, SettlementPayout};
 use crate::utils::cache::{cache_keys, create_cache_key, CacheService};
 use crate::websocket::server::WebSocketServer;
+use crate::middleware::auth::AuthenticatedUser;
+use crate::utils::auth::{check_admin_role, get_user_id};
 use actix::Addr;
 use actix_web::{web, Error, HttpResponse, Result};
 use chrono::Utc;
@@ -10,6 +12,7 @@ use sea_orm::{
     prelude::Decimal, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
     QueryFilter, Set, TransactionTrait,
 };
+use rust_decimal::prelude::*;
 use serde_json::json;
 use uuid::Uuid;
 
@@ -19,14 +22,16 @@ pub async fn settle_event(
     ws_server: web::Data<Addr<WebSocketServer>>,
     event_id: web::Path<i32>,
     req: web::Json<SettleEventRequest>,
-    user_id: web::ReqData<String>,
+    auth_user: web::ReqData<AuthenticatedUser>,
 ) -> Result<HttpResponse, Error> {
-    let user_id_str = &*user_id;
-    let resolver_id: i32 = user_id_str
-        .parse()
-        .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
+    // Check if user is admin
+    if let Err(response) = check_admin_role(&auth_user) {
+        return Ok(response);
+    }
+    
+    let resolver_id = get_user_id(&auth_user)?;
 
-    log::info!("Settling event {} by user {}", event_id, resolver_id);
+    log::info!("Settling event {} by admin {}", event_id, resolver_id);
 
     // Start database transaction
     let txn = db
@@ -57,13 +62,7 @@ pub async fn settle_event(
         }
     };
 
-    // Check if user is the creator of the event
-    if event.created_by != resolver_id {
-        return Ok(HttpResponse::Forbidden().json(json!({
-            "message": "Only the event creator can settle the event",
-            "settlement": serde_json::Value::Null,
-        })));
-    }
+    // Admin users can settle any event
 
     // Check if event is already resolved
     if event.status == "resolved" {

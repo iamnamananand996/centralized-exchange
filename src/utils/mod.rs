@@ -3,3 +3,4 @@ pub mod jwt;
 pub mod pagination;
 pub mod cache;
 pub mod user;
+pub mod auth;

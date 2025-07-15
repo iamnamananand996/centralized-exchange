@@ -2,11 +2,20 @@ use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     error::ErrorUnauthorized,
     http::header,
-    Error, HttpMessage,
+    Error, HttpMessage, web,
 };
 use futures_util::future::{ready, LocalBoxFuture, Ready};
 use std::rc::Rc;
 use crate::utils::jwt::verify_jwt_token;
+use sea_orm::{DatabaseConnection, EntityTrait};
+use entity::users;
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthenticatedUser {
+    pub id: String,
+    pub role: String,
+}
 
 pub struct AuthMiddleware;
 
@@ -59,9 +68,43 @@ where
                 Some(token) => {
                     match verify_jwt_token(token) {
                         Ok(user_id) => {
-                            req.extensions_mut().insert(user_id);
-                            let res = svc.call(req).await?;
-                            Ok(res)
+                            // Get database connection from request data
+                            let db = req.app_data::<web::Data<DatabaseConnection>>();
+                            
+                            if let Some(db) = db {
+                                // Fetch user from database to get role
+                                let user_id_int: i32 = user_id.parse().unwrap_or(0);
+                                let user = users::Entity::find_by_id(user_id_int)
+                                    .one(db.get_ref())
+                                    .await
+                                    .map_err(|_| ErrorUnauthorized("Database error"))?;
+                                
+                                match user {
+                                    Some(user) => {
+                                        if !user.is_active {
+                                            return Err(ErrorUnauthorized("User account is deactivated"));
+                                        }
+                                        
+                                        let auth_user = AuthenticatedUser {
+                                            id: user_id.clone(),
+                                            role: user.role,
+                                        };
+                                        
+                                        // Insert both user_id (for backward compatibility) and auth_user
+                                        req.extensions_mut().insert(user_id);
+                                        req.extensions_mut().insert(auth_user);
+                                        
+                                        let res = svc.call(req).await?;
+                                        Ok(res)
+                                    }
+                                    None => Err(ErrorUnauthorized("User not found")),
+                                }
+                            } else {
+                                // Fallback to just user_id if database is not available
+                                req.extensions_mut().insert(user_id);
+                                let res = svc.call(req).await?;
+                                Ok(res)
+                            }
                         }
                         Err(_) => Err(ErrorUnauthorized("Invalid token")),
                     }

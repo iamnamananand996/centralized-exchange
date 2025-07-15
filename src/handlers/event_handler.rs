@@ -1,4 +1,6 @@
+use crate::middleware::auth::AuthenticatedUser;
 use crate::types::event::{CreateEventRequest, EventResponse, ListEventsQuery, UpdateEventRequest};
+use crate::utils::auth::{check_admin_role, get_user_id};
 use crate::utils::cache::{cache_keys, create_cache_key, CacheService};
 use crate::utils::pagination::{PaginatedResponse, PaginationInfo};
 use crate::websocket::server::WebSocketServer;
@@ -18,14 +20,16 @@ pub async fn create_event(
     redis_pool: web::Data<Pool>,
     ws_server: web::Data<Addr<WebSocketServer>>,
     req: web::Json<CreateEventRequest>,
-    user_id: web::ReqData<String>,
+    auth_user: web::ReqData<AuthenticatedUser>,
 ) -> Result<HttpResponse, Error> {
-    let user_id_str = &*user_id;
-    let creator_id: i32 = user_id_str
-        .parse()
-        .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
+    // Check if user is admin
+    if let Err(response) = check_admin_role(&auth_user) {
+        return Ok(response);
+    }
 
-    log::info!("Creating event for user: {}", creator_id);
+    let creator_id = get_user_id(&auth_user)?;
+
+    log::info!("Creating event for admin user: {}", creator_id);
     log::info!("Request: {:?}", req);
 
     // Validate end_time is in the future
@@ -110,12 +114,12 @@ pub async fn update_event(
     ws_server: web::Data<Addr<WebSocketServer>>,
     event_id: web::Path<i32>,
     req: web::Json<UpdateEventRequest>,
-    user_id: web::ReqData<String>,
+    auth_user: web::ReqData<AuthenticatedUser>,
 ) -> Result<HttpResponse, Error> {
-    let user_id_str = &*user_id;
-    let requester_id: i32 = user_id_str
-        .parse()
-        .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
+    // Check if user is admin
+    if let Err(response) = check_admin_role(&auth_user) {
+        return Ok(response);
+    }
 
     // Find the event
     let event = events::Entity::find_by_id(*event_id)
@@ -136,13 +140,7 @@ pub async fn update_event(
         }
     };
 
-    // Check if user is the creator of the event
-    if event.created_by != requester_id {
-        return Ok(HttpResponse::Forbidden().json(json!({
-            "message": "You can only update events you created",
-            "event": serde_json::Value::Null,
-        })));
-    }
+    // Admin users can update any event, no need to check creator
 
     // Check if event is still editable (not resolved or ended)
     if event.status == "resolved" || event.status == "ended" {
