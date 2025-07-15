@@ -18,6 +18,7 @@ pub struct UserResponse {
     pub full_name: Option<String>,
     pub wallet_balance: sea_orm::prelude::Decimal,
     pub is_active: bool,
+    pub role: String,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
 }
@@ -32,6 +33,7 @@ impl From<users::Model> for UserResponse {
             full_name: user.full_name,
             wallet_balance: user.wallet_balance,
             is_active: user.is_active,
+            role: user.role,
             created_at: user.created_at,
             updated_at: user.updated_at,
         }

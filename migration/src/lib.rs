@@ -7,6 +7,7 @@ mod m20250708_150357_event_options;
 mod m20250109_100000_create_orders_table;
 mod m20250109_110000_create_trades_table;
 mod m20250109_120000_create_user_positions_table;
+mod m20250709_000000_add_user_role;
 
 pub struct Migrator;
 
@@ -21,6 +22,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250109_100000_create_orders_table::Migration),
             Box::new(m20250109_110000_create_trades_table::Migration),
             Box::new(m20250109_120000_create_user_positions_table::Migration),
+            Box::new(m20250709_000000_add_user_role::Migration),
         ]
     }
 }

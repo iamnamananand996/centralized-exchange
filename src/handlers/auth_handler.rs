@@ -13,6 +13,15 @@ pub async fn register(
     db: web::Data<DatabaseConnection>,
     req: web::Json<RegisterRequest>,
 ) -> Result<HttpResponse, Error> {
+    // Validate role
+    if req.role != "user" && req.role != "admin" {
+        return Ok(HttpResponse::BadRequest().json(json!({
+            "message": "Invalid role. Must be 'user' or 'admin'".to_string(),
+            "token": serde_json::Value::Null,
+            "user": serde_json::Value::Null,
+        })));
+    }
+
     // Check if user already exists
     let existing_user = users::Entity::find()
         .filter(users::Column::Email.eq(&req.email))
@@ -64,6 +73,7 @@ pub async fn register(
         full_name: Set(req.full_name.clone()),
         wallet_balance: Set(Decimal::from(0)),
         is_active: Set(true),
+        role: Set(req.role.clone()),
         ..Default::default()
     };
 
@@ -86,6 +96,7 @@ pub async fn register(
         "full_name": user.full_name,
         "wallet_balance": user.wallet_balance,
         "is_active": user.is_active,
+        "role": user.role,
         "created_at": user.created_at,
         "updated_at": user.updated_at,
     });
@@ -159,6 +170,7 @@ pub async fn login(
          "full_name": user.full_name,
          "wallet_balance": user.wallet_balance,
          "is_active": user.is_active,
+         "role": user.role,
          "created_at": user.created_at,
          "updated_at": user.updated_at,
      });

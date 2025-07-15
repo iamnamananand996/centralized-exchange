@@ -111,6 +111,7 @@ pub async fn get_user_details(
         "full_name": user.full_name,
         "wallet_balance": user.wallet_balance,
         "is_active": user.is_active,
+        "role": user.role,
         "created_at": user.created_at,
         "updated_at": user.updated_at,
     });
@@ -182,6 +183,7 @@ pub async fn get_current_user_details(
         "full_name": user.full_name,
         "wallet_balance": user.wallet_balance,
         "is_active": user.is_active,
+        "role": user.role,
         "created_at": user.created_at,
         "updated_at": user.updated_at,
     });
