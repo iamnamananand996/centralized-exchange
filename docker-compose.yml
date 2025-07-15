@@ -1,0 +1,73 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: centralized-exchange-postgres
+    environment:
+      POSTGRES_DB: centralized_exchange
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - centralized-exchange-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: centralized-exchange-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - centralized-exchange-network
+
+  # Main Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: centralized-exchange-app
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/centralized_exchange
+      - REDIS_URL=redis://redis:6379
+      - SERVER_ADDRESS=0.0.0.0:8080
+      - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+      - CORS_ORIGIN=http://localhost:3000
+      - REDIS_MAX_CONNECTIONS=10
+      - REDIS_TIMEOUT_SECONDS=5
+      - PRICE_UPDATE_INTERVAL_SECONDS=300
+      - RUST_LOG=info
+      - RUST_BACKTRACE=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - centralized-exchange-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  centralized-exchange-network:
+    driver: bridge 

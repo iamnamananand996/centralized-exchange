@@ -1,0 +1,15 @@
+target/
+.git/
+.gitignore
+README.md
+LICENSE.md
+postman/
+dump.rdb
+.env
+.env.local
+.env.production
+.vscode/
+.idea/
+*.swp
+*.swo
+*~ 
