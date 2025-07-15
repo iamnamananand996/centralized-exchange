@@ -5,5 +5,5 @@ use crate::middleware::auth::AuthMiddleware;
 pub fn configure_position_routes() -> actix_web::Scope {
     web::scope("/positions")
         .route("/my", web::get().to(position_handler::get_my_positions).wrap(AuthMiddleware))
-        .route("/{event_id}/{option_id}", web::get().to(position_handler::get_position))
+        .route("/{event_id}/{option_id}", web::get().to(position_handler::get_position).wrap(AuthMiddleware))
 } 

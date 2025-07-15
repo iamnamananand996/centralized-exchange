@@ -1,5 +1,5 @@
 use super::types::{Trade, UserPosition};
-use entity::{user_positions, users};
+use entity::user_positions;
 use sea_orm::{
     prelude::Decimal, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
     Set, TransactionTrait,
@@ -99,8 +99,8 @@ impl PositionTracker {
         )
         .await?;
 
-        // Update user balances
-        self.update_user_balances(&txn, trade).await?;
+        // Remove the balance update - this should be handled at the order/trade level
+        // self.update_user_balances(&txn, trade).await?;
 
         txn.commit()
             .await
@@ -183,48 +183,6 @@ impl PositionTracker {
                 })?;
             }
         }
-
-        Ok(())
-    }
-
-    /// Update user balances after a trade
-    async fn update_user_balances(
-        &self,
-        txn: &sea_orm::DatabaseTransaction,
-        trade: &Trade,
-    ) -> Result<(), String> {
-        // Get buyer
-        let buyer = users::Entity::find_by_id(trade.buyer_id)
-            .one(txn)
-            .await
-            .map_err(|e| format!("Failed to find buyer: {}", e))?
-            .ok_or("Buyer not found")?;
-
-        // Get seller
-        let seller = users::Entity::find_by_id(trade.seller_id)
-            .one(txn)
-            .await
-            .map_err(|e| format!("Failed to find seller: {}", e))?
-            .ok_or("Seller not found")?;
-
-        // Update buyer balance (decrease by trade amount)
-        let mut active_buyer: users::ActiveModel = buyer.into();
-        let new_buyer_balance = active_buyer.wallet_balance.as_ref() - trade.total_amount;
-        if new_buyer_balance < Decimal::new(0, 2) {
-            return Err("Insufficient buyer balance".to_string());
-        }
-        active_buyer.wallet_balance = Set(new_buyer_balance);
-        active_buyer.update(txn).await.map_err(|e| {
-            format!("Failed to update buyer balance: {}", e)
-        })?;
-
-        // Update seller balance (increase by trade amount)
-        let mut active_seller: users::ActiveModel = seller.into();
-        let new_seller_balance = active_seller.wallet_balance.as_ref() + trade.total_amount;
-        active_seller.wallet_balance = Set(new_seller_balance);
-        active_seller.update(txn).await.map_err(|e| {
-            format!("Failed to update seller balance: {}", e)
-        })?;
 
         Ok(())
     }

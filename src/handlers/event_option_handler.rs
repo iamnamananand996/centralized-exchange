@@ -1,6 +1,9 @@
+use crate::middleware::auth::AuthenticatedUser;
+use crate::order_book::{MarketMaker, MarketMakerConfig};
 use crate::types::event_option::{
     CreateEventOptionRequest, EventOptionResponse, UpdateEventOptionRequest,
 };
+use crate::utils::auth::{check_admin_role, get_user_id};
 use crate::utils::cache::{cache_keys, create_cache_key, CacheService};
 use crate::utils::pagination::{PaginatedResponse, PaginationInfo, PaginationQuery};
 use crate::websocket::server::WebSocketServer;
@@ -19,17 +22,19 @@ pub async fn create_event_option(
     redis_pool: web::Data<Pool>,
     ws_server: web::Data<Addr<WebSocketServer>>,
     req: web::Json<CreateEventOptionRequest>,
-    user_id: web::ReqData<String>,
+    auth_user: web::ReqData<AuthenticatedUser>,
 ) -> Result<HttpResponse, Error> {
-    let user_id_str = &*user_id;
-    let creator_id: i32 = user_id_str
-        .parse()
-        .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
+    // Check if user is admin
+    if let Err(response) = check_admin_role(&auth_user) {
+        return Ok(response);
+    }
 
-    log::info!("Creating event option for user: {}", creator_id);
+    let creator_id = get_user_id(&auth_user)?;
+
+    log::info!("Creating event option for admin user: {}", creator_id);
     log::info!("Request: {:?}", req);
 
-    // Verify the event exists and user is the creator
+    // Verify the event exists
     let event = events::Entity::find_by_id(req.event_id)
         .one(db.get_ref())
         .await
@@ -48,13 +53,7 @@ pub async fn create_event_option(
         }
     };
 
-    // Check if user is the creator of the event
-    if event.created_by != creator_id {
-        return Ok(HttpResponse::Forbidden().json(json!({
-            "message": "You can only create options for events you created",
-            "option": serde_json::Value::Null,
-        })));
-    }
+    // Admin users can create options for any event
 
     // Check if event is still editable (not resolved or ended)
     if event.status == "resolved" || event.status == "ended" {
@@ -87,6 +86,54 @@ pub async fn create_event_option(
         log::error!("Event option creation error: {}", e);
         actix_web::error::ErrorInternalServerError("Failed to create event option")
     })?;
+
+    // Seed initial liquidity if requested
+    if req.seed_liquidity.unwrap_or(false) {
+        let mut config = MarketMakerConfig::default();
+
+        // Use the creating user as the market maker instead of system user
+        config.market_maker_user_id = creator_id;
+
+        // Use the option's current price as initial price
+        config.initial_price = option.current_price;
+
+        // Apply custom liquidity configuration if provided
+        if let Some(liquidity_config) = &req.liquidity_config {
+            if let Some(spread) = liquidity_config.spread_percentage {
+                config.spread_percentage = spread;
+            }
+            if let Some(levels) = liquidity_config.depth_levels {
+                config.depth_levels = levels;
+            }
+            if let Some(quantity) = liquidity_config.level_quantity {
+                config.level_quantity = quantity;
+            }
+            if let Some(step) = liquidity_config.price_step {
+                config.price_step = step;
+            }
+        }
+
+        // Create market maker and seed liquidity
+        let market_maker =
+            MarketMaker::new(config, db.get_ref().clone(), redis_pool.get_ref().clone());
+
+        match market_maker
+            .seed_initial_liquidity(option.event_id, option.id)
+            .await
+        {
+            Ok(order_ids) => {
+                log::info!(
+                    "Successfully seeded {} liquidity orders for option {}",
+                    order_ids.len(),
+                    option.id
+                );
+            }
+            Err(e) => {
+                log::error!("Failed to seed initial liquidity: {}", e);
+                // Don't fail the option creation, just log the error
+            }
+        }
+    }
 
     // Return success response
     let option_response = EventOptionResponse::from(option.clone());
@@ -129,12 +176,12 @@ pub async fn update_event_option(
     ws_server: web::Data<Addr<WebSocketServer>>,
     option_id: web::Path<i32>,
     req: web::Json<UpdateEventOptionRequest>,
-    user_id: web::ReqData<String>,
+    auth_user: web::ReqData<AuthenticatedUser>,
 ) -> Result<HttpResponse, Error> {
-    let user_id_str = &*user_id;
-    let requester_id: i32 = user_id_str
-        .parse()
-        .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
+    // Check if user is admin
+    if let Err(response) = check_admin_role(&auth_user) {
+        return Ok(response);
+    }
 
     // Find the event option
     let option = event_options::Entity::find_by_id(*option_id)
@@ -174,13 +221,7 @@ pub async fn update_event_option(
         }
     };
 
-    // Check if user is the creator of the event
-    if event.created_by != requester_id {
-        return Ok(HttpResponse::Forbidden().json(json!({
-            "message": "You can only update options for events you created",
-            "option": serde_json::Value::Null,
-        })));
-    }
+    // Admin users can update any event option, no need to check creator
 
     // Check if event is still editable (not resolved or ended)
     if event.status == "resolved" || event.status == "ended" {

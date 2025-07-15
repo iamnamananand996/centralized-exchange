@@ -1,11 +1,11 @@
-use crate::order_book::{
-    db_persistence::DbPersistence, position_tracker::PositionTracker, redis_persistence::RedisOrderBookPersistence,
-    Order, OrderSide, OrderType, TimeInForce,
-};
 use crate::order_book::types::OrderStatus;
+use crate::order_book::{
+    db_persistence::DbPersistence, position_tracker::PositionTracker,
+    redis_persistence::RedisOrderBookPersistence, Order, OrderSide, OrderType, TimeInForce,
+};
 use crate::types::order_book::{
-    CancelOrderRequest, MarketDepthResponse, OrderBookResponse, OrderResponse,
-    PlaceOrderRequest, PlaceOrderResponse, TradeResponse,
+    CancelOrderRequest, MarketDepthResponse, OrderBookResponse, OrderResponse, PlaceOrderRequest,
+    PlaceOrderResponse, TradeResponse,
 };
 use crate::utils::cache::{cache_keys, create_cache_key, CacheService};
 use crate::websocket::server::WebSocketServer;
@@ -13,7 +13,7 @@ use actix::Addr;
 use actix_web::{web, Error, HttpResponse, Result};
 use deadpool_redis::Pool;
 use entity::{event_options, events, users};
-use sea_orm::{DatabaseConnection, EntityTrait, TransactionTrait};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set, TransactionTrait};
 use serde_json::json;
 
 // Removed static ORDER_BOOKS - now using Redis for all order book storage
@@ -221,18 +221,46 @@ pub async fn place_order(
 
     // Process trades in a database transaction
     let updated_balance = if !trades.is_empty() {
-        let txn = db
-            .get_ref()
-            .begin()
-            .await
-            .map_err(|e| {
-                log::error!("Failed to start transaction: {}", e);
-                actix_web::error::ErrorInternalServerError("Transaction error")
-            })?;
+        let txn = db.get_ref().begin().await.map_err(|e| {
+            log::error!("Failed to start transaction: {}", e);
+            actix_web::error::ErrorInternalServerError("Transaction error")
+        })?;
 
         let mut current_balance = user.wallet_balance;
 
         for trade in &trades {
+            // Validate seller has shares before processing the trade
+            let seller_has_shares = match position_tracker
+                .validate_sell_order(
+                    trade.seller_id,
+                    trade.event_id,
+                    trade.option_id,
+                    trade.quantity,
+                )
+                .await
+            {
+                Ok(has_shares) => has_shares,
+                Err(e) => {
+                    log::error!("Position validation error: {}", e);
+                    let _ = txn.rollback().await;
+                    return Err(actix_web::error::ErrorInternalServerError(
+                        "Failed to validate position",
+                    ));
+                }
+            };
+
+            if !seller_has_shares {
+                log::error!(
+                    "Seller {} doesn't have enough shares for trade {}",
+                    trade.seller_id,
+                    trade.id
+                );
+                let _ = txn.rollback().await;
+                return Err(actix_web::error::ErrorInternalServerError(
+                    "Trade execution failed: seller has insufficient shares",
+                ));
+            }
+
             // Save trade to database
             if let Err(e) = db_persistence.save_trade(trade).await {
                 log::error!("Failed to save trade to database: {}", e);
@@ -253,6 +281,57 @@ pub async fn place_order(
                 let _ = txn.rollback().await;
                 return Err(actix_web::error::ErrorInternalServerError(
                     "Failed to update positions",
+                ));
+            }
+
+            // Update user balances in the database
+            // Update buyer's balance (decrease)
+            let buyer = users::Entity::find_by_id(trade.buyer_id)
+                .one(&txn)
+                .await
+                .map_err(|e| {
+                    log::error!("Failed to find buyer: {}", e);
+                    actix_web::error::ErrorInternalServerError("Database error")
+                })?
+                .ok_or_else(|| actix_web::error::ErrorInternalServerError("Buyer not found"))?;
+
+            let mut active_buyer: users::ActiveModel = buyer.into();
+            let new_buyer_balance = active_buyer.wallet_balance.as_ref() - trade.total_amount;
+            if new_buyer_balance < sea_orm::prelude::Decimal::new(0, 2) {
+                let _ = txn.rollback().await;
+                return Err(actix_web::error::ErrorBadRequest(
+                    "Insufficient buyer balance",
+                ));
+            }
+            active_buyer.wallet_balance = Set(new_buyer_balance);
+            active_buyer.updated_at = Set(chrono::Utc::now().naive_utc());
+            if let Err(e) = active_buyer.update(&txn).await {
+                log::error!("Failed to update buyer balance: {}", e);
+                let _ = txn.rollback().await;
+                return Err(actix_web::error::ErrorInternalServerError(
+                    "Failed to update balance",
+                ));
+            }
+
+            // Update seller's balance (increase)
+            let seller = users::Entity::find_by_id(trade.seller_id)
+                .one(&txn)
+                .await
+                .map_err(|e| {
+                    log::error!("Failed to find seller: {}", e);
+                    actix_web::error::ErrorInternalServerError("Database error")
+                })?
+                .ok_or_else(|| actix_web::error::ErrorInternalServerError("Seller not found"))?;
+
+            let mut active_seller: users::ActiveModel = seller.into();
+            let new_seller_balance = active_seller.wallet_balance.as_ref() + trade.total_amount;
+            active_seller.wallet_balance = Set(new_seller_balance);
+            active_seller.updated_at = Set(chrono::Utc::now().naive_utc());
+            if let Err(e) = active_seller.update(&txn).await {
+                log::error!("Failed to update seller balance: {}", e);
+                let _ = txn.rollback().await;
+                return Err(actix_web::error::ErrorInternalServerError(
+                    "Failed to update balance",
                 ));
             }
 
@@ -299,12 +378,10 @@ pub async fn place_order(
             let _ = db_persistence.update_order(&sell_order).await;
         }
 
-        txn.commit()
-            .await
-            .map_err(|e| {
-                log::error!("Failed to commit transaction: {}", e);
-                actix_web::error::ErrorInternalServerError("Transaction error")
-            })?;
+        txn.commit().await.map_err(|e| {
+            log::error!("Failed to commit transaction: {}", e);
+            actix_web::error::ErrorInternalServerError("Transaction error")
+        })?;
 
         current_balance
     } else {
@@ -340,7 +417,8 @@ pub async fn place_order(
             ws_server_clone,
             event_id,
             option_id,
-        ).await;
+        )
+        .await;
     });
 
     // Invalidate caches
@@ -464,7 +542,8 @@ pub async fn cancel_order(
             ws_server_clone,
             event_id,
             option_id,
-        ).await;
+        )
+        .await;
     });
 
     // Invalidate caches
@@ -759,4 +838,4 @@ pub async fn get_trade_history(
         "success": true,
         "trades": trade_responses
     })))
-} 
+}

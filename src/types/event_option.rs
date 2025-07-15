@@ -7,6 +7,17 @@ pub struct CreateEventOptionRequest {
     pub event_id: i32,
     pub option_text: String,
     pub current_price: Option<Decimal>,
+    // Optional liquidity seeding parameters
+    pub seed_liquidity: Option<bool>,
+    pub liquidity_config: Option<LiquidityConfig>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct LiquidityConfig {
+    pub spread_percentage: Option<Decimal>,
+    pub depth_levels: Option<usize>,
+    pub level_quantity: Option<i32>,
+    pub price_step: Option<Decimal>,
 }
 
 #[derive(Deserialize)]
