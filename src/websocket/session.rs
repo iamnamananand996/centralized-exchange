@@ -81,8 +81,7 @@ impl WebSocketSession {
         if let Some(channel_enum) = SubscriptionChannel::from_string(&channel) {
             // Check if user has permission to subscribe to this channel
             match &channel_enum {
-                SubscriptionChannel::Transactions
-                | SubscriptionChannel::Portfolio => {
+                SubscriptionChannel::Transactions | SubscriptionChannel::Portfolio => {
                     if self.user_id.is_none() {
                         return Some(WebSocketResponse::error(
                             "Authentication required for this channel".to_string(),

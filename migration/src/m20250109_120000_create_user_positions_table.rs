@@ -11,14 +11,38 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(UserPositions::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(UserPositions::Id).integer().not_null().auto_increment().primary_key())
+                    .col(
+                        ColumnDef::new(UserPositions::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(UserPositions::UserId).integer().not_null())
                     .col(ColumnDef::new(UserPositions::EventId).integer().not_null())
                     .col(ColumnDef::new(UserPositions::OptionId).integer().not_null())
-                    .col(ColumnDef::new(UserPositions::Quantity).integer().not_null().default(0))
-                    .col(ColumnDef::new(UserPositions::AveragePrice).decimal_len(20, 8).not_null().default(0.0))
-                    .col(ColumnDef::new(UserPositions::CreatedAt).timestamp_with_time_zone().not_null())
-                    .col(ColumnDef::new(UserPositions::UpdatedAt).timestamp_with_time_zone().not_null())
+                    .col(
+                        ColumnDef::new(UserPositions::Quantity)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(
+                        ColumnDef::new(UserPositions::AveragePrice)
+                            .decimal_len(20, 8)
+                            .not_null()
+                            .default(0.0),
+                    )
+                    .col(
+                        ColumnDef::new(UserPositions::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(UserPositions::UpdatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_positions_user")
@@ -122,4 +146,4 @@ enum Events {
 enum EventOptions {
     Table,
     Id,
-} 
+}

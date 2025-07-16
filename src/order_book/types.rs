@@ -16,9 +16,9 @@ pub enum OrderType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum TimeInForce {
-    GTC,  // Good Till Cancelled (default)
-    IOC,  // Immediate Or Cancel
-    FOK,  // Fill Or Kill - must fill entire order immediately or cancel
+    GTC, // Good Till Cancelled (default)
+    IOC, // Immediate Or Cancel
+    FOK, // Fill Or Kill - must fill entire order immediately or cancel
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -155,4 +155,4 @@ impl Order {
         self.status = OrderStatus::Rejected;
         self.updated_at = Utc::now();
     }
-} 
+}

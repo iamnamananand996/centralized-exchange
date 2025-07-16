@@ -21,4 +21,4 @@ pub struct TransactionResponse {
     pub status: String,
     pub reference_id: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
-} 
+}

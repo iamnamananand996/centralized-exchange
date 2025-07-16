@@ -19,14 +19,14 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(EventOptions::IsWinningOption)
                             .boolean()
-                            .null()
+                            .null(),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_event_options_event_id")
                             .from(EventOptions::Table, EventOptions::EventId)
                             .to(Events::Table, Events::Id)
-                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .to_owned(),
             )

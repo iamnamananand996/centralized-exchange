@@ -1,12 +1,12 @@
 pub use sea_orm_migration::prelude::*;
 
 mod m20240101_000000_create_users_table;
-mod m20250707_223909_transactions;
-mod m20250708_130208_events;
-mod m20250708_150357_event_options;
 mod m20250109_100000_create_orders_table;
 mod m20250109_110000_create_trades_table;
 mod m20250109_120000_create_user_positions_table;
+mod m20250707_223909_transactions;
+mod m20250708_130208_events;
+mod m20250708_150357_event_options;
 mod m20250709_000000_add_user_role;
 
 pub struct Migrator;

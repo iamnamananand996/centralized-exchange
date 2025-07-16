@@ -24,7 +24,7 @@ impl MigrationTrait for Migration {
                         ForeignKey::create()
                             .name("fk_transactions_user_id")
                             .from(Transaction::Table, Transaction::UserId)
-                            .to(Users::Table, Users::Id)
+                            .to(Users::Table, Users::Id),
                     )
                     .to_owned(),
             )

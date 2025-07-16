@@ -1,11 +1,8 @@
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
-use actix::Message;
-use crate::types::{
-    event::EventResponse,
-    transaction::TransactionResponse,
-};
+use crate::types::{event::EventResponse, transaction::TransactionResponse};
 use crate::utils::pagination::PaginatedResponse;
+use actix::Message;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// Pre-serialized message for efficient broadcasting
 pub struct PreSerializedMessage(pub String);
@@ -43,17 +40,11 @@ pub enum WebSocketMessage {
         params: Option<serde_json::Value>,
     },
     #[serde(rename = "unsubscribe")]
-    Unsubscribe {
-        channel: String,
-    },
+    Unsubscribe { channel: String },
     #[serde(rename = "ping")]
-    Ping {
-        timestamp: DateTime<Utc>,
-    },
+    Ping { timestamp: DateTime<Utc> },
     #[serde(rename = "pong")]
-    Pong {
-        timestamp: DateTime<Utc>,
-    },
+    Pong { timestamp: DateTime<Utc> },
     #[serde(rename = "error")]
     Error {
         message: String,
@@ -132,4 +123,4 @@ impl SubscriptionChannel {
 
 impl Message for WebSocketMessage {
     type Result = ();
-} 
+}

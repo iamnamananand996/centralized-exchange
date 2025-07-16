@@ -132,7 +132,7 @@ impl PositionTracker {
                 let old_quantity = position.quantity;
                 let old_avg_price = position.average_price;
                 let new_quantity = old_quantity + quantity_change;
-                
+
                 if new_quantity < 0 {
                     return Err("Insufficient shares to sell".to_string());
                 }
@@ -148,7 +148,7 @@ impl PositionTracker {
                     let total_cost = old_avg_price * Decimal::from(old_quantity)
                         + price * Decimal::from(quantity_change);
                     let new_avg_price = total_cost / Decimal::from(new_quantity);
-                    
+
                     active_position.quantity = Set(new_quantity);
                     active_position.average_price = Set(new_avg_price);
                 } else {
@@ -157,9 +157,10 @@ impl PositionTracker {
                 }
 
                 active_position.updated_at = Set(chrono::Utc::now().into());
-                active_position.update(txn).await.map_err(|e| {
-                    format!("Failed to update position: {}", e)
-                })?;
+                active_position
+                    .update(txn)
+                    .await
+                    .map_err(|e| format!("Failed to update position: {}", e))?;
             }
             None => {
                 if quantity_change < 0 {
@@ -178,9 +179,10 @@ impl PositionTracker {
                     ..Default::default()
                 };
 
-                new_position.insert(txn).await.map_err(|e| {
-                    format!("Failed to create position: {}", e)
-                })?;
+                new_position
+                    .insert(txn)
+                    .await
+                    .map_err(|e| format!("Failed to create position: {}", e))?;
             }
         }
 
@@ -205,7 +207,7 @@ impl PositionTracker {
         user_id: i32,
     ) -> Result<HashMap<i32, Vec<UserPosition>>, String> {
         let positions = self.get_user_positions(user_id).await?;
-        
+
         let mut grouped: HashMap<i32, Vec<UserPosition>> = HashMap::new();
         for position in positions {
             grouped
@@ -213,7 +215,7 @@ impl PositionTracker {
                 .or_insert_with(Vec::new)
                 .push(position);
         }
-        
+
         Ok(grouped)
     }
-} 
+}

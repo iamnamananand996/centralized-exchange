@@ -1,8 +1,10 @@
-use crate::order_book::types::{MarketDepth, OrderSide, OrderStatus, OrderType, PriceLevel, TimeInForce};
+use crate::order_book::types::{
+    MarketDepth, OrderSide, OrderStatus, OrderType, PriceLevel, TimeInForce,
+};
 use crate::utils::pagination::PaginationQuery;
+use chrono::{DateTime, Utc};
 use sea_orm::prelude::Decimal;
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PlaceOrderRequest {
@@ -109,4 +111,4 @@ impl From<PriceLevel> for PriceLevelResponse {
             order_count: level.order_count,
         }
     }
-} 
+}

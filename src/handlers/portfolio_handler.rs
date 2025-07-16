@@ -2,13 +2,13 @@ use crate::order_book::position_tracker::PositionTracker;
 use crate::order_book::types::UserPosition;
 use crate::utils::cache::CacheService;
 use actix_web::{web, Error, HttpResponse, Result};
+use deadpool_redis::Pool;
+use entity::{event_options, events, users};
+use sea_orm::prelude::Decimal;
 use sea_orm::DatabaseConnection;
-use serde_json::json;
-use entity::{users, event_options, events};
 use sea_orm::EntityTrait;
 use serde::Serialize;
-use deadpool_redis::Pool;
-use sea_orm::prelude::Decimal;
+use serde_json::json;
 use std::collections::HashMap;
 
 #[derive(Serialize)]
@@ -80,7 +80,7 @@ pub async fn get_portfolio(
         .ok_or_else(|| actix_web::error::ErrorNotFound("User not found"))?;
 
     let position_tracker = PositionTracker::new(db.get_ref().clone());
-    
+
     // Get all user positions
     let positions = position_tracker
         .get_user_positions(user_id_int)
@@ -156,7 +156,7 @@ pub async fn get_portfolio(
         }
 
         let event_pnl = event_current_value - event_invested;
-        
+
         total_invested += event_invested;
         current_value += event_current_value;
 
@@ -213,7 +213,7 @@ pub async fn get_portfolio_summary(
     }
 
     let position_tracker = PositionTracker::new(db.get_ref().clone());
-    
+
     // Get all user positions
     let positions = position_tracker
         .get_user_positions(user_id_int)
@@ -250,7 +250,7 @@ pub async fn get_portfolio_summary(
             if let Some(option) = option {
                 let position_cost = position.average_price * Decimal::from(position.quantity);
                 let position_value = option.current_price * Decimal::from(position.quantity);
-                
+
                 total_invested += position_cost;
                 current_value += position_value;
             }
@@ -284,4 +284,4 @@ pub async fn get_portfolio_summary(
     }
 
     Ok(HttpResponse::Ok().json(response))
-} 
+}

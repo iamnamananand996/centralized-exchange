@@ -15,7 +15,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(Users::Role)
                             .string_len(50)
                             .not_null()
-                            .default("user")
+                            .default("user"),
                     )
                     .to_owned(),
             )
@@ -39,4 +39,4 @@ impl MigrationTrait for Migration {
 enum Users {
     Table,
     Role,
-} 
+}

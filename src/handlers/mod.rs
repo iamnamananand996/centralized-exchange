@@ -1,10 +1,10 @@
-pub mod health;
 pub mod auth_handler;
-pub mod user_handler;
-pub mod transaction_handler;
 pub mod event_handler;
 pub mod event_option_handler;
 pub mod event_settlement_handler;
+pub mod health;
 pub mod order_book_handler;
-pub mod position_handler;
 pub mod portfolio_handler;
+pub mod position_handler;
+pub mod transaction_handler;
+pub mod user_handler;

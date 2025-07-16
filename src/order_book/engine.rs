@@ -1,6 +1,6 @@
 use super::types::{
-    MarketDepth, Order, OrderBookSnapshot, OrderSide, OrderStatus, OrderType, PriceLevel, Trade,
-    TimeInForce,
+    MarketDepth, Order, OrderBookSnapshot, OrderSide, OrderStatus, OrderType, PriceLevel,
+    TimeInForce, Trade,
 };
 use chrono::Utc;
 use sea_orm::prelude::Decimal;
@@ -133,10 +133,7 @@ impl OrderBookEngine {
 
     /// Cancel an existing order
     pub fn cancel_order(&mut self, order_id: &str) -> Result<Order, String> {
-        let mut order = self
-            .orders_map
-            .remove(order_id)
-            .ok_or("Order not found")?;
+        let mut order = self.orders_map.remove(order_id).ok_or("Order not found")?;
 
         order.cancel();
 
@@ -568,20 +565,27 @@ impl OrderBookEngine {
     }
 
     /// Get the internal state of the order book for persistence
-    pub fn get_internal_state(&self) -> (
+    pub fn get_internal_state(
+        &self,
+    ) -> (
         &BTreeMap<Decimal, VecDeque<Order>>,
         &BTreeMap<Decimal, VecDeque<Order>>,
         &HashMap<String, Order>,
-        Option<Decimal>
+        Option<Decimal>,
     ) {
-        (&self.buy_orders, &self.sell_orders, &self.orders_map, self.last_trade_price)
+        (
+            &self.buy_orders,
+            &self.sell_orders,
+            &self.orders_map,
+            self.last_trade_price,
+        )
     }
 
     /// Add an order directly to the order book (used for reconstruction from Redis)
     pub fn add_order_directly(&mut self, order: Order) {
         let order_id = order.id.clone();
         let price = order.price;
-        
+
         match order.side {
             OrderSide::Buy => {
                 self.buy_orders
@@ -596,7 +600,7 @@ impl OrderBookEngine {
                     .push_back(order.clone());
             }
         }
-        
+
         self.orders_map.insert(order_id, order);
     }
 
@@ -604,4 +608,4 @@ impl OrderBookEngine {
     pub fn set_last_trade_price(&mut self, price: Decimal) {
         self.last_trade_price = Some(price);
     }
-} 
+}

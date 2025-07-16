@@ -24,10 +24,7 @@ pub struct WebSocketHandlers {
 }
 
 impl WebSocketHandlers {
-    pub fn new(
-        db: web::Data<DatabaseConnection>,
-        ws_server: Addr<WebSocketServer>,
-    ) -> Self {
+    pub fn new(db: web::Data<DatabaseConnection>, ws_server: Addr<WebSocketServer>) -> Self {
         Self { db, ws_server }
     }
 
@@ -398,7 +395,7 @@ impl WebSocketHandlers {
         // Import position tracker
         use crate::order_book::position_tracker::PositionTracker;
         use std::collections::HashMap;
-        
+
         // Get user data
         let user = match users::Entity::find_by_id(user_id)
             .one(self.db.get_ref())
@@ -416,7 +413,7 @@ impl WebSocketHandlers {
         };
 
         let position_tracker = PositionTracker::new(self.db.get_ref().clone());
-        
+
         // Get all user positions
         let positions = match position_tracker.get_user_positions(user_id).await {
             Ok(pos) => pos,
@@ -486,7 +483,7 @@ impl WebSocketHandlers {
             }
 
             let event_pnl = event_current_value - event_invested;
-            
+
             total_invested += event_invested;
             current_value += event_current_value;
 
@@ -523,7 +520,7 @@ impl WebSocketHandlers {
     pub async fn fetch_and_send_initial_portfolio(&self, session_id: usize, user_id: i32) {
         // Import position tracker
         use crate::order_book::position_tracker::PositionTracker;
-        
+
         // Get user data
         let user = match users::Entity::find_by_id(user_id)
             .one(self.db.get_ref())
@@ -541,7 +538,7 @@ impl WebSocketHandlers {
         };
 
         let position_tracker = PositionTracker::new(self.db.get_ref().clone());
-        
+
         // Get grouped positions
         let grouped_positions = match position_tracker.get_portfolio_positions(user_id).await {
             Ok(grouped) => grouped,
@@ -598,7 +595,7 @@ impl WebSocketHandlers {
             }
 
             let event_pnl = event_current_value - event_invested;
-            
+
             total_invested += event_invested;
             current_value += event_current_value;
 
@@ -628,10 +625,11 @@ impl WebSocketHandlers {
             timestamp: Utc::now(),
         };
 
-        self.ws_server.do_send(crate::websocket::server::SendToSession {
-            session_id,
-            message,
-        });
+        self.ws_server
+            .do_send(crate::websocket::server::SendToSession {
+                session_id,
+                message,
+            });
     }
 }
 

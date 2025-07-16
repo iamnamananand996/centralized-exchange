@@ -32,13 +32,13 @@ impl MigrationTrait for Migration {
                         ForeignKey::create()
                             .name("fk_events_created_by")
                             .from(Events::Table, Events::CreatedBy)
-                            .to(Users::Table, Users::Id)
+                            .to(Users::Table, Users::Id),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_events_resolved_by")
                             .from(Events::Table, Events::ResolvedBy)
-                            .to(Users::Table, Users::Id)
+                            .to(Users::Table, Users::Id),
                     )
                     .to_owned(),
             )

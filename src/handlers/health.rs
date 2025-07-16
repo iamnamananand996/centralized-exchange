@@ -1,5 +1,5 @@
-use actix_web::{HttpResponse, Result};
 use crate::types::response::ApiResponse;
+use actix_web::{HttpResponse, Result};
 
 pub async fn health_check() -> Result<HttpResponse> {
     let response = ApiResponse {
@@ -15,4 +15,4 @@ pub async fn index() -> Result<HttpResponse> {
         status: "success".to_string(),
     };
     Ok(HttpResponse::Ok().json(response))
-} 
+}

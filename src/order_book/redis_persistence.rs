@@ -1,6 +1,6 @@
 use super::engine::OrderBookEngine;
 use super::types::{Order, OrderStatus, Trade};
-use deadpool_redis::{Pool, redis::AsyncCommands};
+use deadpool_redis::{redis::AsyncCommands, Pool};
 use sea_orm::prelude::Decimal;
 use serde_json;
 use std::collections::VecDeque;
@@ -28,10 +28,11 @@ impl RedisOrderBookPersistence {
             .map_err(|e| format!("Failed to get Redis connection: {}", e))?;
 
         let base_key = format!("orderbook:{}:{}", event_id, option_id);
-        
+
         // Get the internal state of the order book
-        let (buy_orders, sell_orders, orders_map, last_trade_price) = order_book.get_internal_state();
-        
+        let (buy_orders, sell_orders, orders_map, last_trade_price) =
+            order_book.get_internal_state();
+
         // Start a Redis transaction
         let _: () = deadpool_redis::redis::cmd("MULTI")
             .query_async(&mut conn)
@@ -43,37 +44,52 @@ impl RedisOrderBookPersistence {
         let sell_orders_key = format!("{}:sells", base_key);
         let orders_map_key = format!("{}:orders", base_key);
         let metadata_key = format!("{}:metadata", base_key);
-        
-        let _: () = conn.del(&buy_orders_key).await.map_err(|e| format!("Failed to delete buy orders: {}", e))?;
-        let _: () = conn.del(&sell_orders_key).await.map_err(|e| format!("Failed to delete sell orders: {}", e))?;
-        let _: () = conn.del(&orders_map_key).await.map_err(|e| format!("Failed to delete orders map: {}", e))?;
-        
+
+        let _: () = conn
+            .del(&buy_orders_key)
+            .await
+            .map_err(|e| format!("Failed to delete buy orders: {}", e))?;
+        let _: () = conn
+            .del(&sell_orders_key)
+            .await
+            .map_err(|e| format!("Failed to delete sell orders: {}", e))?;
+        let _: () = conn
+            .del(&orders_map_key)
+            .await
+            .map_err(|e| format!("Failed to delete orders map: {}", e))?;
+
         // Save buy orders (price -> list of orders)
         for (price, orders) in buy_orders {
             let price_key = format!("{}:{}", buy_orders_key, price.to_string());
             let serialized_orders = serde_json::to_string(&orders)
                 .map_err(|e| format!("Failed to serialize buy orders: {}", e))?;
-            let _: () = conn.set_ex(&price_key, serialized_orders, 86400).await
+            let _: () = conn
+                .set_ex(&price_key, serialized_orders, 86400)
+                .await
                 .map_err(|e| format!("Failed to save buy orders at price {}: {}", price, e))?;
         }
-        
+
         // Save sell orders (price -> list of orders)
         for (price, orders) in sell_orders {
             let price_key = format!("{}:{}", sell_orders_key, price.to_string());
             let serialized_orders = serde_json::to_string(&orders)
                 .map_err(|e| format!("Failed to serialize sell orders: {}", e))?;
-            let _: () = conn.set_ex(&price_key, serialized_orders, 86400).await
+            let _: () = conn
+                .set_ex(&price_key, serialized_orders, 86400)
+                .await
                 .map_err(|e| format!("Failed to save sell orders at price {}: {}", price, e))?;
         }
-        
+
         // Save orders map
         for (order_id, order) in orders_map {
             let serialized_order = serde_json::to_string(&order)
                 .map_err(|e| format!("Failed to serialize order: {}", e))?;
-            let _: () = conn.hset(&orders_map_key, order_id, serialized_order).await
+            let _: () = conn
+                .hset(&orders_map_key, order_id, serialized_order)
+                .await
                 .map_err(|e| format!("Failed to save order to map: {}", e))?;
         }
-        
+
         // Save metadata
         let metadata = serde_json::json!({
             "event_id": event_id,
@@ -81,9 +97,11 @@ impl RedisOrderBookPersistence {
             "last_trade_price": last_trade_price,
             "last_updated": chrono::Utc::now().to_rfc3339()
         });
-        let _: () = conn.set_ex(&metadata_key, metadata.to_string(), 86400).await
+        let _: () = conn
+            .set_ex(&metadata_key, metadata.to_string(), 86400)
+            .await
             .map_err(|e| format!("Failed to save metadata: {}", e))?;
-        
+
         // Execute transaction
         let _: () = deadpool_redis::redis::cmd("EXEC")
             .query_async(&mut conn)
@@ -107,75 +125,96 @@ impl RedisOrderBookPersistence {
 
         let base_key = format!("orderbook:{}:{}", event_id, option_id);
         let metadata_key = format!("{}:metadata", base_key);
-        
+
         // Check if order book exists
-        let exists: bool = conn.exists(&metadata_key).await
+        let exists: bool = conn
+            .exists(&metadata_key)
+            .await
             .map_err(|e| format!("Failed to check order book existence: {}", e))?;
-        
+
         if !exists {
             return Ok(None);
         }
-        
+
         // Load metadata
-        let metadata_str: String = conn.get(&metadata_key).await
+        let metadata_str: String = conn
+            .get(&metadata_key)
+            .await
             .map_err(|e| format!("Failed to load metadata: {}", e))?;
         let metadata: serde_json::Value = serde_json::from_str(&metadata_str)
             .map_err(|e| format!("Failed to parse metadata: {}", e))?;
-        
-        let last_trade_price = metadata.get("last_trade_price")
+
+        let last_trade_price = metadata
+            .get("last_trade_price")
             .and_then(|v| v.as_str())
             .and_then(|s| s.parse::<Decimal>().ok());
-        
+
         // Create new order book
         let mut order_book = OrderBookEngine::new(event_id, option_id);
-        
+
         // Load buy orders
         let buy_orders_key = format!("{}:buys", base_key);
-        let buy_price_keys: Vec<String> = conn.keys(format!("{}:*", buy_orders_key)).await
+        let buy_price_keys: Vec<String> = conn
+            .keys(format!("{}:*", buy_orders_key))
+            .await
             .map_err(|e| format!("Failed to get buy order keys: {}", e))?;
-        
+
         for price_key in buy_price_keys {
-            let price_str = price_key.split(':').last().ok_or("Invalid price key format")?;
-            let price = price_str.parse::<Decimal>()
+            let price_str = price_key
+                .split(':')
+                .last()
+                .ok_or("Invalid price key format")?;
+            let price = price_str
+                .parse::<Decimal>()
                 .map_err(|e| format!("Failed to parse price: {}", e))?;
-            
-            let orders_str: String = conn.get(&price_key).await
+
+            let orders_str: String = conn
+                .get(&price_key)
+                .await
                 .map_err(|e| format!("Failed to load buy orders at price {}: {}", price, e))?;
             let orders: VecDeque<Order> = serde_json::from_str(&orders_str)
                 .map_err(|e| format!("Failed to deserialize buy orders: {}", e))?;
-            
+
             // Reconstruct buy orders in the order book
             for order in orders {
                 order_book.add_order_directly(order);
             }
         }
-        
+
         // Load sell orders
         let sell_orders_key = format!("{}:sells", base_key);
-        let sell_price_keys: Vec<String> = conn.keys(format!("{}:*", sell_orders_key)).await
+        let sell_price_keys: Vec<String> = conn
+            .keys(format!("{}:*", sell_orders_key))
+            .await
             .map_err(|e| format!("Failed to get sell order keys: {}", e))?;
-        
+
         for price_key in sell_price_keys {
-            let price_str = price_key.split(':').last().ok_or("Invalid price key format")?;
-            let price = price_str.parse::<Decimal>()
+            let price_str = price_key
+                .split(':')
+                .last()
+                .ok_or("Invalid price key format")?;
+            let price = price_str
+                .parse::<Decimal>()
                 .map_err(|e| format!("Failed to parse price: {}", e))?;
-            
-            let orders_str: String = conn.get(&price_key).await
+
+            let orders_str: String = conn
+                .get(&price_key)
+                .await
                 .map_err(|e| format!("Failed to load sell orders at price {}: {}", price, e))?;
             let orders: VecDeque<Order> = serde_json::from_str(&orders_str)
                 .map_err(|e| format!("Failed to deserialize sell orders: {}", e))?;
-            
+
             // Reconstruct sell orders in the order book
             for order in orders {
                 order_book.add_order_directly(order);
             }
         }
-        
+
         // Set last trade price if available
         if let Some(price) = last_trade_price {
             order_book.set_last_trade_price(price);
         }
-        
+
         Ok(Some(order_book))
     }
 
@@ -189,10 +228,11 @@ impl RedisOrderBookPersistence {
         if let Some(order_book) = self.load_full_order_book(event_id, option_id).await? {
             return Ok(order_book);
         }
-        
+
         // Create new order book if doesn't exist
         let order_book = OrderBookEngine::new(event_id, option_id);
-        self.save_full_order_book(event_id, option_id, &order_book).await?;
+        self.save_full_order_book(event_id, option_id, &order_book)
+            .await?;
         Ok(order_book)
     }
 
@@ -210,7 +250,7 @@ impl RedisOrderBookPersistence {
             .map_err(|e| format!("Failed to get Redis connection: {}", e))?;
 
         let key = format!("order_book:{}:{}", event_id, option_id);
-        
+
         // Serialize the order book snapshot
         let snapshot = order_book.get_snapshot();
         let serialized = serde_json::to_string(&snapshot)
@@ -237,7 +277,7 @@ impl RedisOrderBookPersistence {
             .map_err(|e| format!("Failed to get Redis connection: {}", e))?;
 
         let key = format!("order_book:{}:{}", event_id, option_id);
-        
+
         let data: Option<String> = conn
             .get(&key)
             .await
@@ -278,7 +318,8 @@ impl RedisOrderBookPersistence {
             .map_err(|e| format!("Failed to add order to user list: {}", e))?;
 
         // Add to event-option order list
-        let event_orders_key = format!("event:{}:option:{}:orders", order.event_id, order.option_id);
+        let event_orders_key =
+            format!("event:{}:option:{}:orders", order.event_id, order.option_id);
         conn.sadd(&event_orders_key, &order.id)
             .await
             .map_err(|e| format!("Failed to add order to event list: {}", e))?;
@@ -354,9 +395,10 @@ impl RedisOrderBookPersistence {
             .map_err(|e| format!("Failed to save trade to Redis: {}", e))?;
 
         // Add to event-option trade list
-        let event_trades_key = format!("event:{}:option:{}:trades", trade.event_id, trade.option_id);
+        let event_trades_key =
+            format!("event:{}:option:{}:trades", trade.event_id, trade.option_id);
         let score = trade.timestamp.timestamp_millis() as f64;
-        
+
         conn.zadd(&event_trades_key, &trade.id, score)
             .await
             .map_err(|e| format!("Failed to add trade to sorted set: {}", e))?;
@@ -364,11 +406,11 @@ impl RedisOrderBookPersistence {
         // Add to user trade lists
         let buyer_trades_key = format!("user:{}:trades", trade.buyer_id);
         let seller_trades_key = format!("user:{}:trades", trade.seller_id);
-        
+
         conn.zadd(&buyer_trades_key, &trade.id, score)
             .await
             .map_err(|e| format!("Failed to add trade to buyer list: {}", e))?;
-            
+
         conn.zadd(&seller_trades_key, &trade.id, score)
             .await
             .map_err(|e| format!("Failed to add trade to seller list: {}", e))?;
@@ -390,7 +432,7 @@ impl RedisOrderBookPersistence {
             .map_err(|e| format!("Failed to get Redis connection: {}", e))?;
 
         let event_trades_key = format!("event:{}:option:{}:trades", event_id, option_id);
-        
+
         // Get most recent trade IDs
         let trade_ids: Vec<String> = conn
             .zrevrange(&event_trades_key, 0, limit - 1)
@@ -474,4 +516,4 @@ impl RedisOrderBookPersistence {
         // This method could be used for additional cleanup if needed
         Ok(())
     }
-} 
+}

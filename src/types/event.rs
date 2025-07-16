@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
-use sea_orm::prelude::Decimal;
-use chrono::{DateTime, Utc};
-use entity::{events, event_options};
 use crate::utils::pagination::PaginationQuery;
+use chrono::{DateTime, Utc};
+use entity::{event_options, events};
+use sea_orm::prelude::Decimal;
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Debug)]
 pub struct CreateEventRequest {
@@ -92,10 +92,22 @@ impl From<(events::Model, Vec<event_options::Model>)> for EventResponse {
             total_volume: event.total_volume,
             image_url: event.image_url,
             created_by: event.created_by,
-            resolved_by: if event.resolved_by == 0 { None } else { Some(event.resolved_by) },
-            winning_option_id: if event.winning_option_id == 0 { None } else { Some(event.winning_option_id) },
+            resolved_by: if event.resolved_by == 0 {
+                None
+            } else {
+                Some(event.resolved_by)
+            },
+            winning_option_id: if event.winning_option_id == 0 {
+                None
+            } else {
+                Some(event.winning_option_id)
+            },
             resolution_note: event.resolution_note,
-            resolved_at: if event.resolved_at == chrono::NaiveDateTime::default() { None } else { Some(event.resolved_at) },
+            resolved_at: if event.resolved_at == chrono::NaiveDateTime::default() {
+                None
+            } else {
+                Some(event.resolved_at)
+            },
             created_at: event.created_at,
             updated_at: event.updated_at,
             options: options.into_iter().map(OptionResponse::from).collect(),
@@ -131,4 +143,4 @@ pub struct SettlementResponse {
     pub total_positions_settled: usize,
     pub payouts: Vec<SettlementPayout>,
     pub settlement_timestamp: chrono::NaiveDateTime,
-} 
+}

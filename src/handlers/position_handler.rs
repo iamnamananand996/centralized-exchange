@@ -62,4 +62,4 @@ pub async fn get_position(
         "success": true,
         "position": position
     })))
-} 
+}

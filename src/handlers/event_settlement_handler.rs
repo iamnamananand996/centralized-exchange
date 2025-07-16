@@ -1,18 +1,18 @@
-use crate::types::event::{SettleEventRequest, SettlementResponse, SettlementPayout};
+use crate::middleware::auth::AuthenticatedUser;
+use crate::types::event::{SettleEventRequest, SettlementPayout, SettlementResponse};
+use crate::utils::auth::{check_admin_role, get_user_id};
 use crate::utils::cache::{cache_keys, create_cache_key, CacheService};
 use crate::websocket::server::WebSocketServer;
-use crate::middleware::auth::AuthenticatedUser;
-use crate::utils::auth::{check_admin_role, get_user_id};
 use actix::Addr;
 use actix_web::{web, Error, HttpResponse, Result};
 use chrono::Utc;
 use deadpool_redis::Pool;
-use entity::{event_options, events, user_positions, users, transaction};
-use sea_orm::{
-    prelude::Decimal, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
-    QueryFilter, Set, TransactionTrait,
-};
+use entity::{event_options, events, transaction, user_positions, users};
 use rust_decimal::prelude::*;
+use sea_orm::{
+    prelude::Decimal, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    Set, TransactionTrait,
+};
 use serde_json::json;
 use uuid::Uuid;
 
@@ -28,20 +28,16 @@ pub async fn settle_event(
     if let Err(response) = check_admin_role(&auth_user) {
         return Ok(response);
     }
-    
+
     let resolver_id = get_user_id(&auth_user)?;
 
     log::info!("Settling event {} by admin {}", event_id, resolver_id);
 
     // Start database transaction
-    let txn = db
-        .get_ref()
-        .begin()
-        .await
-        .map_err(|e| {
-            log::error!("Failed to start transaction: {}", e);
-            actix_web::error::ErrorInternalServerError("Transaction error")
-        })?;
+    let txn = db.get_ref().begin().await.map_err(|e| {
+        log::error!("Failed to start transaction: {}", e);
+        actix_web::error::ErrorInternalServerError("Transaction error")
+    })?;
 
     // Get the event
     let event = events::Entity::find_by_id(*event_id)
@@ -144,9 +140,7 @@ pub async fn settle_event(
                 log::error!("Database error: {}", e);
                 actix_web::error::ErrorInternalServerError("Database error occurred")
             })?
-            .ok_or_else(|| {
-                actix_web::error::ErrorInternalServerError("User not found")
-            })?;
+            .ok_or_else(|| actix_web::error::ErrorInternalServerError("User not found"))?;
 
         // Get option details
         let option = event_options::Entity::find_by_id(position.option_id)
@@ -156,9 +150,7 @@ pub async fn settle_event(
                 log::error!("Database error: {}", e);
                 actix_web::error::ErrorInternalServerError("Database error occurred")
             })?
-            .ok_or_else(|| {
-                actix_web::error::ErrorInternalServerError("Option not found")
-            })?;
+            .ok_or_else(|| actix_web::error::ErrorInternalServerError("Option not found"))?;
 
         let is_winner = position.option_id == req.winning_option_id;
         let payout = if is_winner {
@@ -215,7 +207,11 @@ pub async fn settle_event(
             option_id: position.option_id,
             option_text: option.option_text.clone(),
             shares_held: position.quantity,
-            payout_per_share: if is_winner { payout_per_share } else { Decimal::new(0, 2) },
+            payout_per_share: if is_winner {
+                payout_per_share
+            } else {
+                Decimal::new(0, 2)
+            },
             total_payout: payout,
             profit_loss,
         });
@@ -229,19 +225,17 @@ pub async fn settle_event(
     active_event.resolution_note = Set(req.resolution_note.clone().unwrap_or_default());
     active_event.resolved_at = Set(Utc::now().naive_utc());
     active_event.updated_at = Set(Utc::now().naive_utc());
-    
+
     let updated_event = active_event.update(&txn).await.map_err(|e| {
         log::error!("Failed to update event: {}", e);
         actix_web::error::ErrorInternalServerError("Failed to update event")
     })?;
 
     // Commit transaction
-    txn.commit()
-        .await
-        .map_err(|e| {
-            log::error!("Failed to commit transaction: {}", e);
-            actix_web::error::ErrorInternalServerError("Transaction commit failed")
-        })?;
+    txn.commit().await.map_err(|e| {
+        log::error!("Failed to commit transaction: {}", e);
+        actix_web::error::ErrorInternalServerError("Transaction commit failed")
+    })?;
 
     // Prepare response
     let settlement_response = SettlementResponse {
@@ -268,14 +262,14 @@ pub async fn settle_event(
     }
 
     // Broadcast updates
-    let handlers = crate::websocket::handlers::WebSocketHandlers::new(
-        db.clone(),
-        ws_server.get_ref().clone(),
-    );
-    
+    let handlers =
+        crate::websocket::handlers::WebSocketHandlers::new(db.clone(), ws_server.get_ref().clone());
+
     let event_id_for_broadcast = *event_id;
     tokio::spawn(async move {
-        handlers.fetch_and_broadcast_event(event_id_for_broadcast).await;
+        handlers
+            .fetch_and_broadcast_event(event_id_for_broadcast)
+            .await;
     });
 
     ws_server.do_send(crate::websocket::server::BroadcastEventsUpdate);
@@ -296,4 +290,4 @@ pub async fn settle_event(
         "message": "Event settled successfully",
         "settlement": settlement_response,
     })))
-} 
+}

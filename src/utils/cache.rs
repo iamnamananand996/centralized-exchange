@@ -11,7 +11,10 @@ impl CacheService {
     }
 
     /// Get a value from cache
-    pub async fn get<T>(&self, key: &str) -> Result<Option<T>, Box<dyn std::error::Error + Send + Sync>>
+    pub async fn get<T>(
+        &self,
+        key: &str,
+    ) -> Result<Option<T>, Box<dyn std::error::Error + Send + Sync>>
     where
         T: for<'de> Deserialize<'de>,
     {
@@ -66,7 +69,10 @@ impl CacheService {
     }
 
     /// Check if a key exists in cache
-    pub async fn exists(&self, key: &str) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn exists(
+        &self,
+        key: &str,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let mut conn = self.pool.get().await?;
         let exists: bool = conn.exists(key).await?;
         Ok(exists)

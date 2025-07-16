@@ -6,8 +6,11 @@ use actix::Addr;
 use actix_web::web;
 use deadpool_redis::Pool;
 use entity::{event_options, events};
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set, JoinType, QuerySelect, RelationTrait, QueryFilter, ColumnTrait};
 use sea_orm::prelude::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter,
+    QuerySelect, RelationTrait, Set,
+};
 
 /// Update event option prices based on order book data for active events only
 pub async fn update_option_prices(
@@ -16,7 +19,7 @@ pub async fn update_option_prices(
     ws_server: web::Data<Addr<WebSocketServer>>,
 ) {
     let redis_persistence = RedisOrderBookPersistence::new(redis_pool.get_ref().clone());
-    
+
     // Get only event options from active events to reduce database load
     let options = match event_options::Entity::find()
         .join(JoinType::InnerJoin, event_options::Relation::Events.def())
@@ -31,7 +34,10 @@ pub async fn update_option_prices(
         }
     };
 
-    log::info!("Checking {} active event options for price updates", options.len());
+    log::info!(
+        "Checking {} active event options for price updates",
+        options.len()
+    );
 
     let mut price_updates = Vec::new();
 
@@ -45,10 +51,17 @@ pub async fn update_option_prices(
             Ok(Some(order_book)) => {
                 if let Some(predicted_price) = order_book.get_predicted_price() {
                     // Only update if price has changed significantly (more than 0.5%)
-                    let price_change_ratio = ((predicted_price - option.current_price) / option.current_price).abs();
-                    
-                    if price_change_ratio > Decimal::new(5, 3) { // 0.005 = 0.5%
-                        price_updates.push((option.event_id, option.id, predicted_price, option.current_price));
+                    let price_change_ratio =
+                        ((predicted_price - option.current_price) / option.current_price).abs();
+
+                    if price_change_ratio > Decimal::new(5, 3) {
+                        // 0.005 = 0.5%
+                        price_updates.push((
+                            option.event_id,
+                            option.id,
+                            predicted_price,
+                            option.current_price,
+                        ));
                     }
                 }
             }
@@ -57,11 +70,7 @@ pub async fn update_option_prices(
                 continue;
             }
             Err(e) => {
-                log::error!(
-                    "Failed to load order book for option {}: {}",
-                    option.id,
-                    e
-                );
+                log::error!("Failed to load order book for option {}: {}", option.id, e);
                 continue;
             }
         }
@@ -209,7 +218,10 @@ pub async fn update_option_price_immediately(
             return;
         }
         Err(e) => {
-            log::error!("Failed to load order book for immediate price update: {}", e);
+            log::error!(
+                "Failed to load order book for immediate price update: {}",
+                e
+            );
             return;
         }
     };
@@ -237,10 +249,8 @@ pub async fn update_option_price_immediately(
     }
 
     // Broadcast the update
-    let handlers = crate::websocket::handlers::WebSocketHandlers::new(
-        db.clone(),
-        ws_server.get_ref().clone(),
-    );
+    let handlers =
+        crate::websocket::handlers::WebSocketHandlers::new(db.clone(), ws_server.get_ref().clone());
 
     tokio::spawn(async move {
         handlers.fetch_and_broadcast_event(event_id).await;
@@ -256,28 +266,24 @@ pub fn start_price_updater(
     ws_server: web::Data<Addr<WebSocketServer>>,
 ) {
     let interval_seconds = config::get_price_update_interval_seconds();
-    
+
     log::info!(
         "Starting price updater with {}-second interval (checking active events only)",
         interval_seconds
     );
 
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(interval_seconds));
+        let mut interval =
+            tokio::time::interval(tokio::time::Duration::from_secs(interval_seconds));
 
         loop {
             interval.tick().await;
-            
+
             let start_time = std::time::Instant::now();
-            update_option_prices(
-                db.clone(),
-                redis_pool.clone(),
-                ws_server.clone(),
-            )
-            .await;
-            
+            update_option_prices(db.clone(), redis_pool.clone(), ws_server.clone()).await;
+
             let elapsed = start_time.elapsed();
             log::debug!("Price update cycle completed in {:?}", elapsed);
         }
     });
-} 
+}

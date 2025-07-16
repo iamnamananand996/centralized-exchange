@@ -19,4 +19,4 @@ fn default_role() -> String {
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
-} 
+}

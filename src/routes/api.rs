@@ -1,5 +1,5 @@
-use actix_web::web;
 use crate::handlers::health::{health_check, index};
+use actix_web::web;
 
 pub fn configure_routes() -> actix_web::Scope {
     web::scope("")
@@ -14,4 +14,4 @@ pub fn configure_routes() -> actix_web::Scope {
         .service(crate::routes::order_book::configure_order_book_routes())
         .service(crate::routes::position::configure_position_routes())
         .service(crate::routes::portfolio::configure_portfolio_routes())
-} 
+}

@@ -17,13 +17,31 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Orders::OptionId).integer().not_null())
                     .col(ColumnDef::new(Orders::Side).string().not_null())
                     .col(ColumnDef::new(Orders::OrderType).string().not_null())
-                    .col(ColumnDef::new(Orders::TimeInForce).string().not_null().default("GTC"))
+                    .col(
+                        ColumnDef::new(Orders::TimeInForce)
+                            .string()
+                            .not_null()
+                            .default("GTC"),
+                    )
                     .col(ColumnDef::new(Orders::Price).decimal_len(20, 8).not_null())
                     .col(ColumnDef::new(Orders::Quantity).integer().not_null())
-                    .col(ColumnDef::new(Orders::FilledQuantity).integer().not_null().default(0))
+                    .col(
+                        ColumnDef::new(Orders::FilledQuantity)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
                     .col(ColumnDef::new(Orders::Status).string().not_null())
-                    .col(ColumnDef::new(Orders::CreatedAt).timestamp_with_time_zone().not_null())
-                    .col(ColumnDef::new(Orders::UpdatedAt).timestamp_with_time_zone().not_null())
+                    .col(
+                        ColumnDef::new(Orders::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Orders::UpdatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_orders_user")
@@ -128,4 +146,4 @@ enum Events {
 enum EventOptions {
     Table,
     Id,
-} 
+}

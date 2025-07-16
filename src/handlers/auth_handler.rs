@@ -1,3 +1,5 @@
+use crate::types::auth::{LoginRequest, RegisterRequest};
+use crate::utils::jwt::create_jwt_token;
 use actix_web::{web, Error, HttpResponse, Result};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use entity::users;
@@ -6,8 +8,6 @@ use sea_orm::{
     Set,
 };
 use serde_json::json;
-use crate::utils::jwt::create_jwt_token;
-use crate::types::auth::{RegisterRequest, LoginRequest};
 
 pub async fn register(
     db: web::Data<DatabaseConnection>,
@@ -162,18 +162,18 @@ pub async fn login(
         actix_web::error::ErrorInternalServerError("Failed to create authentication token")
     })?;
 
-         let user_response = json!({
-         "id": user.id,
-         "username": user.username,
-         "email": user.email,
-         "phone": user.phone,
-         "full_name": user.full_name,
-         "wallet_balance": user.wallet_balance,
-         "is_active": user.is_active,
-         "role": user.role,
-         "created_at": user.created_at,
-         "updated_at": user.updated_at,
-     });
+    let user_response = json!({
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "phone": user.phone,
+        "full_name": user.full_name,
+        "wallet_balance": user.wallet_balance,
+        "is_active": user.is_active,
+        "role": user.role,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+    });
 
     Ok(HttpResponse::Ok().json(json!({
         "message": "Login successful".to_string(),

@@ -1,13 +1,12 @@
 use super::{
-    Order, OrderSide, OrderType, TimeInForce,
-    db_persistence::DbPersistence,
-    redis_persistence::RedisOrderBookPersistence,
+    db_persistence::DbPersistence, redis_persistence::RedisOrderBookPersistence, Order, OrderSide,
+    OrderType, TimeInForce,
 };
-use sea_orm::{DatabaseConnection, prelude::Decimal, TransactionTrait};
 use deadpool_redis::Pool;
-use std::error::Error;
 use entity::user_positions;
-use sea_orm::{ActiveModelTrait, Set, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{prelude::Decimal, DatabaseConnection, TransactionTrait};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use std::error::Error;
 
 #[derive(Clone, Debug)]
 pub struct MarketMakerConfig {
@@ -28,8 +27,8 @@ pub struct MarketMakerConfig {
 impl Default for MarketMakerConfig {
     fn default() -> Self {
         Self {
-            market_maker_user_id: 1, // System user
-            initial_price: Decimal::new(5000, 2), // 50.00
+            market_maker_user_id: 1,               // System user
+            initial_price: Decimal::new(5000, 2),  // 50.00
             spread_percentage: Decimal::new(2, 2), // 0.02 = 2%
             depth_levels: 5,
             level_quantity: 100,
@@ -76,7 +75,7 @@ impl MarketMaker {
                 active_position.quantity = Set(new_quantity);
                 active_position.updated_at = Set(chrono::Utc::now().into());
                 active_position.update(&self.db).await?;
-                
+
                 log::info!(
                     "Updated market maker position for option {}: {} shares (total: {})",
                     option_id,
@@ -96,9 +95,9 @@ impl MarketMaker {
                     updated_at: Set(chrono::Utc::now().into()),
                     ..Default::default()
                 };
-                
+
                 new_position.insert(&self.db).await?;
-                
+
                 log::info!(
                     "Created market maker position for option {}: {} shares",
                     option_id,
@@ -118,13 +117,14 @@ impl MarketMaker {
     ) -> Result<Vec<String>, Box<dyn Error>> {
         // Calculate total shares needed for sell orders
         let total_shares_needed = self.config.level_quantity * self.config.depth_levels as i32;
-        
+
         // Create market maker position first (before creating sell orders)
-        self.create_market_maker_position(event_id, option_id, total_shares_needed).await?;
-        
+        self.create_market_maker_position(event_id, option_id, total_shares_needed)
+            .await?;
+
         let redis_persistence = RedisOrderBookPersistence::new(self.redis_pool.clone());
         let db_persistence = DbPersistence::new(self.db.clone());
-        
+
         // Get or create the order book
         let mut order_book = redis_persistence
             .get_or_create_order_book(event_id, option_id)
@@ -134,12 +134,12 @@ impl MarketMaker {
 
         // Calculate spread
         let half_spread = self.config.spread_percentage / Decimal::from(2);
-        
+
         // Create sell orders (asks) above the initial price
         let ask_base_price = self.config.initial_price * (Decimal::from(1) + half_spread);
         for i in 0..self.config.depth_levels {
             let price = ask_base_price + (self.config.price_step * Decimal::from(i as i64));
-            
+
             // Don't exceed 100.00 for prediction markets
             if price > Decimal::new(10000, 2) {
                 break;
@@ -159,9 +159,9 @@ impl MarketMaker {
             // Save to database
             db_persistence.save_order(&order).await?;
             redis_persistence.save_order(&order).await?;
-            
+
             order_ids.push(order.id.clone());
-            
+
             // Add to order book
             order_book.add_order_directly(order);
         }
@@ -170,7 +170,7 @@ impl MarketMaker {
         let bid_base_price = self.config.initial_price * (Decimal::from(1) - half_spread);
         for i in 0..self.config.depth_levels {
             let price = bid_base_price - (self.config.price_step * Decimal::from(i as i64));
-            
+
             // Don't go below 0.00
             if price <= Decimal::new(0, 2) {
                 break;
@@ -190,9 +190,9 @@ impl MarketMaker {
             // Save to database
             db_persistence.save_order(&order).await?;
             redis_persistence.save_order(&order).await?;
-            
+
             order_ids.push(order.id.clone());
-            
+
             // Add to order book
             order_book.add_order_directly(order);
         }
@@ -213,5 +213,4 @@ impl MarketMaker {
 
         Ok(order_ids)
     }
-
-} 
+}

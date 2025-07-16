@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-use sea_orm::prelude::Decimal;
 use entity::event_options;
+use sea_orm::prelude::Decimal;
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Debug)]
 pub struct CreateEventOptionRequest {
@@ -48,4 +48,4 @@ impl From<event_options::Model> for EventOptionResponse {
             is_winning_option: option.is_winning_option,
         }
     }
-} 
+}

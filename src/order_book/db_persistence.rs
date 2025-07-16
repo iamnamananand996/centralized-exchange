@@ -1,8 +1,8 @@
 use super::types::{Order, OrderSide, OrderStatus, OrderType, TimeInForce, Trade};
 use entity::{orders, trades};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait,
 };
 
 pub struct DbPersistence {
@@ -32,9 +32,10 @@ impl DbPersistence {
             updated_at: Set(order.updated_at.into()),
         };
 
-        new_order.insert(&self.db).await.map_err(|e| {
-            format!("Failed to save order to database: {}", e)
-        })?;
+        new_order
+            .insert(&self.db)
+            .await
+            .map_err(|e| format!("Failed to save order to database: {}", e))?;
 
         Ok(())
     }
@@ -52,9 +53,10 @@ impl DbPersistence {
         active_order.status = Set(order.status.to_string());
         active_order.updated_at = Set(order.updated_at.into());
 
-        active_order.update(&self.db).await.map_err(|e| {
-            format!("Failed to update order: {}", e)
-        })?;
+        active_order
+            .update(&self.db)
+            .await
+            .map_err(|e| format!("Failed to update order: {}", e))?;
 
         Ok(())
     }
@@ -75,9 +77,10 @@ impl DbPersistence {
             timestamp: Set(trade.timestamp.into()),
         };
 
-        new_trade.insert(&self.db).await.map_err(|e| {
-            format!("Failed to save trade to database: {}", e)
-        })?;
+        new_trade
+            .insert(&self.db)
+            .await
+            .map_err(|e| format!("Failed to save trade to database: {}", e))?;
 
         Ok(())
     }
@@ -89,8 +92,7 @@ impl DbPersistence {
         status: Option<&str>,
         limit: u64,
     ) -> Result<Vec<Order>, String> {
-        let mut query = orders::Entity::find()
-            .filter(orders::Column::UserId.eq(user_id));
+        let mut query = orders::Entity::find().filter(orders::Column::UserId.eq(user_id));
 
         if let Some(status_filter) = status {
             query = query.filter(orders::Column::Status.eq(status_filter));
@@ -158,11 +160,7 @@ impl DbPersistence {
     }
 
     /// Get user's trades
-    pub async fn get_user_trades(
-        &self,
-        user_id: i32,
-        limit: u64,
-    ) -> Result<Vec<Trade>, String> {
+    pub async fn get_user_trades(&self, user_id: i32, limit: u64) -> Result<Vec<Trade>, String> {
         let db_trades = trades::Entity::find()
             .filter(
                 trades::Column::BuyerId
@@ -196,7 +194,9 @@ impl DbPersistence {
     /// Execute a batch of database operations in a transaction
     pub async fn execute_in_transaction<F, R>(&self, operations: F) -> Result<R, String>
     where
-        F: FnOnce(&sea_orm::DatabaseTransaction) -> std::pin::Pin<
+        F: FnOnce(
+            &sea_orm::DatabaseTransaction,
+        ) -> std::pin::Pin<
             Box<dyn std::future::Future<Output = Result<R, String>> + Send + '_>,
         >,
     {
@@ -299,4 +299,4 @@ impl ToString for OrderStatus {
             OrderStatus::Rejected => "Rejected".to_string(),
         }
     }
-} 
+}

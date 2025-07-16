@@ -39,4 +39,4 @@ pub fn configure_order_book_routes() -> Scope {
             "/events/{event_id}/options/{option_id}/trades",
             web::get().to(order_book_handler::get_trade_history),
         )
-} 
+}

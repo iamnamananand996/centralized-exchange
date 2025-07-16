@@ -5,23 +5,19 @@ pub fn get_database_url() -> Result<String, env::VarError> {
 }
 
 pub fn get_server_address() -> String {
-    env::var("SERVER_ADDRESS")
-        .unwrap_or_else(|_| "127.0.0.1:8080".to_string())
-} 
+    env::var("SERVER_ADDRESS").unwrap_or_else(|_| "127.0.0.1:8080".to_string())
+}
 
 pub fn get_jwt_secret() -> String {
-    env::var("JWT_SECRET")
-        .unwrap_or_else(|_| "your-secret-key".to_string())
+    env::var("JWT_SECRET").unwrap_or_else(|_| "your-secret-key".to_string())
 }
 
 pub fn get_cors_origin() -> String {
-    env::var("CORS_ORIGIN")
-        .unwrap_or_else(|_| "http://localhost:3000".to_string())
+    env::var("CORS_ORIGIN").unwrap_or_else(|_| "http://localhost:3000".to_string())
 }
 
 pub fn get_redis_url() -> String {
-    env::var("REDIS_URL")
-        .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string())
+    env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string())
 }
 
 pub fn get_redis_max_connections() -> u32 {

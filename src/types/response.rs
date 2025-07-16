@@ -4,4 +4,4 @@ use serde::{Deserialize, Serialize};
 pub struct ApiResponse {
     pub message: String,
     pub status: String,
-} 
+}

@@ -20,8 +20,16 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Trades::SellOrderId).string().not_null())
                     .col(ColumnDef::new(Trades::Price).decimal_len(20, 8).not_null())
                     .col(ColumnDef::new(Trades::Quantity).integer().not_null())
-                    .col(ColumnDef::new(Trades::TotalAmount).decimal_len(20, 8).not_null())
-                    .col(ColumnDef::new(Trades::Timestamp).timestamp_with_time_zone().not_null())
+                    .col(
+                        ColumnDef::new(Trades::TotalAmount)
+                            .decimal_len(20, 8)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Trades::Timestamp)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_trades_event")
@@ -164,4 +172,4 @@ enum EventOptions {
 enum Orders {
     Table,
     Id,
-} 
+}

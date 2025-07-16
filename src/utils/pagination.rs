@@ -2,9 +2,15 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PaginationQuery {
-    #[serde(deserialize_with = "deserialize_optional_u64", serialize_with = "serialize_optional_u64")]
+    #[serde(
+        deserialize_with = "deserialize_optional_u64",
+        serialize_with = "serialize_optional_u64"
+    )]
     pub page: Option<u64>,
-    #[serde(deserialize_with = "deserialize_optional_u64", serialize_with = "serialize_optional_u64")]
+    #[serde(
+        deserialize_with = "deserialize_optional_u64",
+        serialize_with = "serialize_optional_u64"
+    )]
     pub limit: Option<u64>,
 }
 
@@ -13,7 +19,7 @@ where
     D: serde::Deserializer<'de>,
 {
     use serde::de::Error;
-    
+
     let opt: Option<String> = Option::deserialize(deserializer)?;
     match opt {
         Some(s) => s.parse::<u64>().map(Some).map_err(Error::custom),
@@ -86,4 +92,4 @@ impl<T> PaginatedResponse<T> {
     pub fn new(data: Vec<T>, pagination: PaginationInfo) -> Self {
         Self { data, pagination }
     }
-} 
+}

@@ -1,19 +1,19 @@
+use actix::prelude::Actor;
 use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
 use deadpool_redis::{Config, Pool, Runtime};
 use dotenv::dotenv;
 use migration::sea_orm::{Database, DatabaseConnection};
 use migration::MigratorTrait;
-use actix::prelude::Actor;
 
 mod constants;
 mod handlers;
 mod middleware;
+mod order_book;
 mod routes;
 mod types;
 mod utils;
 mod websocket;
-mod order_book;
 
 // Import the migration module
 use migration::Migrator;
@@ -48,8 +48,9 @@ async fn main() -> std::io::Result<()> {
     // Start WebSocket server
     let ws_server = websocket::server::WebSocketServer::with_handlers(
         web::Data::new(db.clone()),
-        web::Data::new(redis_pool.clone())
-    ).start();
+        web::Data::new(redis_pool.clone()),
+    )
+    .start();
 
     // Start the price updater background task
     order_book::price_updater::start_price_updater(

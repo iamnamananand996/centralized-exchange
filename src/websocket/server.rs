@@ -472,11 +472,7 @@ impl Handler<BroadcastTransactionsUpdate> for WebSocketServer {
 impl Handler<BroadcastPortfolioUpdate> for WebSocketServer {
     type Result = ();
 
-    fn handle(
-        &mut self,
-        msg: BroadcastPortfolioUpdate,
-        ctx: &mut Context<Self>,
-    ) -> Self::Result {
+    fn handle(&mut self, msg: BroadcastPortfolioUpdate, ctx: &mut Context<Self>) -> Self::Result {
         // Get all sessions for this user subscribed to portfolio
         if let Some(user_sessions) = self.user_sessions.get(&msg.user_id) {
             for &session_id in user_sessions {
@@ -494,9 +490,7 @@ impl Handler<BroadcastPortfolioUpdate> for WebSocketServer {
                                     ws_server_addr,
                                 );
 
-                                handlers
-                                    .fetch_and_broadcast_portfolio(user_id)
-                                    .await;
+                                handlers.fetch_and_broadcast_portfolio(user_id).await;
                             });
                         }
                     }

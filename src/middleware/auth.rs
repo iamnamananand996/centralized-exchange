@@ -1,15 +1,15 @@
+use crate::utils::jwt::verify_jwt_token;
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     error::ErrorUnauthorized,
     http::header,
-    Error, HttpMessage, web,
+    web, Error, HttpMessage,
 };
-use futures_util::future::{ready, LocalBoxFuture, Ready};
-use std::rc::Rc;
-use crate::utils::jwt::verify_jwt_token;
-use sea_orm::{DatabaseConnection, EntityTrait};
 use entity::users;
-use serde::{Serialize, Deserialize};
+use futures_util::future::{ready, LocalBoxFuture, Ready};
+use sea_orm::{DatabaseConnection, EntityTrait};
+use serde::{Deserialize, Serialize};
+use std::rc::Rc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthenticatedUser {
@@ -70,7 +70,7 @@ where
                         Ok(user_id) => {
                             // Get database connection from request data
                             let db = req.app_data::<web::Data<DatabaseConnection>>();
-                            
+
                             if let Some(db) = db {
                                 // Fetch user from database to get role
                                 let user_id_int: i32 = user_id.parse().unwrap_or(0);
@@ -78,22 +78,24 @@ where
                                     .one(db.get_ref())
                                     .await
                                     .map_err(|_| ErrorUnauthorized("Database error"))?;
-                                
+
                                 match user {
                                     Some(user) => {
                                         if !user.is_active {
-                                            return Err(ErrorUnauthorized("User account is deactivated"));
+                                            return Err(ErrorUnauthorized(
+                                                "User account is deactivated",
+                                            ));
                                         }
-                                        
+
                                         let auth_user = AuthenticatedUser {
                                             id: user_id.clone(),
                                             role: user.role,
                                         };
-                                        
+
                                         // Insert both user_id (for backward compatibility) and auth_user
                                         req.extensions_mut().insert(user_id);
                                         req.extensions_mut().insert(auth_user);
-                                        
+
                                         let res = svc.call(req).await?;
                                         Ok(res)
                                     }

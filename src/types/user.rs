@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-use entity::users;
 use crate::utils::pagination::PaginationQuery;
+use entity::users;
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 pub struct ListUsersQuery {
@@ -38,4 +38,4 @@ impl From<users::Model> for UserResponse {
             updated_at: user.updated_at,
         }
     }
-} 
+}

@@ -1,11 +1,14 @@
-use actix_web::{web, Error, HttpResponse, Result};
-use entity::users;
-use sea_orm::{DatabaseConnection, EntityTrait, QueryOrder, QuerySelect, PaginatorTrait, ColumnTrait, QueryFilter};
-use serde_json::json;
-use crate::utils::pagination::{PaginationInfo, PaginatedResponse};
 use crate::types::user::{ListUsersQuery, UserResponse};
-use crate::utils::cache::{CacheService, create_cache_key, cache_keys};
+use crate::utils::cache::{cache_keys, create_cache_key, CacheService};
+use crate::utils::pagination::{PaginatedResponse, PaginationInfo};
+use actix_web::{web, Error, HttpResponse, Result};
 use deadpool_redis::Pool;
+use entity::users;
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect,
+};
+use serde_json::json;
 
 pub async fn list_users(
     db: web::Data<DatabaseConnection>,
@@ -44,10 +47,7 @@ pub async fn list_users(
             actix_web::error::ErrorInternalServerError("Database error occurred")
         })?;
 
-    let users_response: Vec<UserResponse> = users
-        .into_iter()
-        .map(UserResponse::from)
-        .collect();
+    let users_response: Vec<UserResponse> = users.into_iter().map(UserResponse::from).collect();
 
     let pagination_info = PaginationInfo::new(page, total_count, limit);
     let response = PaginatedResponse::new(users_response, pagination_info);
@@ -133,9 +133,9 @@ pub async fn get_current_user_details(
     user_id: web::ReqData<String>,
 ) -> Result<HttpResponse, Error> {
     let user_id_str = &*user_id;
-    let user_id: i32 = user_id_str.parse().map_err(|_| {
-        actix_web::error::ErrorBadRequest("Invalid user ID")
-    })?;
+    let user_id: i32 = user_id_str
+        .parse()
+        .map_err(|_| actix_web::error::ErrorBadRequest("Invalid user ID"))?;
 
     let cache_service = CacheService::new(redis_pool.get_ref().clone());
     let cache_key = create_cache_key(cache_keys::USER_PREFIX, &user_id.to_string());
