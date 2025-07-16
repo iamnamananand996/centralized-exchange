@@ -1,0 +1,57 @@
+name: Add PR Template
+
+on:
+  pull_request:
+    types: [opened, edited]
+    branches: [ main, develop ]
+
+jobs:
+  add-pr-template:
+    name: Add PR Template
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.body == null || github.event.pull_request.body == ''
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Add PR Template
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const template = `## Description
+          
+          Please describe what this PR does and why it's needed.
+          
+          ## Changes Made
+          
+          - [ ] List the main changes here
+          - [ ] Add more items as needed
+          
+          ## Testing
+          
+          - [ ] How was this tested?
+          - [ ] Any specific test cases?
+          
+          ## Breaking Changes
+          
+          - [ ] Are there any breaking changes?
+          - [ ] If yes, describe them here
+          
+          ## Additional Notes
+          
+          Any additional information or context.
+          `;
+          
+          try {
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              body: template
+            });
+            
+            console.log('✅ PR template added successfully');
+          } catch (error) {
+            console.error('❌ Failed to add PR template:', error.message);
+          } 
