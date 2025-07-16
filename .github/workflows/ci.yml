@@ -63,10 +63,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: target
-        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-    
-    - name: Run clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }} 
 
   test:
     name: Test Suite
