@@ -1,0 +1,1367 @@
+{
+	"info": {
+		"_postman_id": "97a368e9-6311-463d-adde-c73363f67494",
+		"name": "centralized-exchange",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "9042885"
+	},
+	"item": [
+		{
+			"name": "health",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Response status code is 200\", function () {",
+							"    pm.expect(pm.response.code).to.equal(200);",
+							"});",
+							"",
+							"",
+							"pm.test(\"Response has required fields\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData).to.have.all.keys('message', 'status');",
+							"});",
+							"",
+							"",
+							"pm.test(\"Status is either 'healthy' or 'unhealthy'\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.status).to.exist.and.to.satisfy(status => ",
+							"        status === \"healthy\" || status === \"unhealthy\", \"Status must be either 'healthy' or 'unhealthy'\"",
+							"    );",
+							"});",
+							"",
+							"",
+							"pm.test(\"Response time is less than 200ms\", function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(200);",
+							"});",
+							"",
+							"",
+							"pm.test(\"Content-Type is application/json\", function () {",
+							"    pm.expect(pm.response.headers.get('Content-Type')).to.eql('application/json');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/health",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"health"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "{{BASE_URL}}/auth/register",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Response status code is 201\", function () {",
+							"    pm.expect(pm.response.status).to.equal(201);",
+							"});",
+							"",
+							"",
+							"pm.test(\"Response time is less than 200ms\", function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(200);",
+							"});",
+							"",
+							"",
+							"pm.test(\"Response matches the expected schema for registration\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData).to.have.all.keys('id', 'email', 'username', 'created_at');",
+							"",
+							"    pm.expect(responseData.id).to.be.a('string');",
+							"    pm.expect(responseData.email).to.be.a('string').and.to.match(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/, \"Email format is invalid\");",
+							"    pm.expect(responseData.username).to.be.a('string').and.to.have.lengthOf.at.least(1, \"Username should not be empty\");",
+							"    pm.expect(responseData.created_at).to.be.a('string').and.to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d{3}Z$/, \"Created_at format is invalid\");",
+							"});",
+							"",
+							"",
+							"pm.test(\"Response contains a success message\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData).to.have.property('message').that.is.a('string').and.is.not.empty;",
+							"});",
+							"",
+							"",
+							"pm.test(\"Ensure that the response does not expose sensitive information\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData).to.not.have.any.keys('password', 'ssn', 'credit_card', 'security_answer');",
+							"});",
+							"var responseData = pm.response.json();",
+							"",
+							"// Combining tests for response structure and properties",
+							"pm.test(\"Response structure and properties are valid\", function () {",
+							"    pm.expect(responseData).to.be.an('object').that.has.all.keys('id', 'email', 'username', 'created_at', 'message');",
+							"    ",
+							"    pm.expect(responseData.id).to.be.a('string');",
+							"    pm.expect(responseData.email).to.be.a('string').and.to.match(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/, \"Email format is invalid\");",
+							"    pm.expect(responseData.username).to.be.a('string').and.to.have.lengthOf.at.least(1, \"Username should not be empty\");",
+							"    pm.expect(responseData.created_at).to.be.a('string').and.to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d{3}Z$/, \"Created_at format is invalid\");",
+							"    pm.expect(responseData.message).to.be.a('string').and.is.not.empty;",
+							"});",
+							"",
+							"// Test to ensure no sensitive information is exposed",
+							"pm.test(\"Ensure that the response does not expose sensitive information\", function () {",
+							"    pm.expect(responseData).to.not.have.any.keys('password', 'ssn', 'credit_card', 'security_answer');",
+							"});",
+							"// Save the user ID from the response to a global variable",
+							"var responseData = pm.response.json();",
+							"pm.globals.set(\"userId\", responseData.id);",
+							"var responseData = pm.response.json();",
+							"",
+							"// Test for non-empty response body",
+							"pm.test(\"Response body is not empty\", function () {",
+							"    pm.expect(responseData).to.not.be.empty;",
+							"});",
+							"",
+							"// Existing tests",
+							"pm.test(\"Response status code is 201\", function () {",
+							"    pm.expect(pm.response.status).to.equal(201);",
+							"});",
+							"",
+							"pm.test(\"Response time is less than 200ms\", function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(200);",
+							"});",
+							"",
+							"pm.test(\"Response structure and properties are valid\", function () {",
+							"    pm.expect(responseData).to.be.an('object').that.has.all.keys('id', 'email', 'username', 'created_at', 'message');",
+							"    ",
+							"    pm.expect(responseData.id).to.be.a('string');",
+							"    pm.expect(responseData.email).to.be.a('string').and.to.match(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/, \"Email format is invalid\");",
+							"    pm.expect(responseData.username).to.be.a('string').and.to.have.lengthOf.at.least(1, \"Username should not be empty\");",
+							"    pm.expect(responseData.created_at).to.be.a('string').and.to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d{3}Z$/, \"Created_at format is invalid\");",
+							"    pm.expect(responseData.message).to.be.a('string').and.is.not.empty;",
+							"});",
+							"",
+							"// Test to ensure no sensitive information is exposed",
+							"pm.test(\"Ensure that the response does not expose sensitive information\", function () {",
+							"    pm.expect(responseData).to.not.have.any.keys('password', 'ssn', 'credit_card', 'security_answer');",
+							"});",
+							"",
+							"// Save the user ID from the response to a global variable",
+							"pm.globals.set(\"userId\", responseData.id);"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				},
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"username\": \"naman4\",\n  \"email\": \"naman4.com\",\n  \"phone\": \"40000\",\n  \"password\": \"test@123\",\n  \"full_name\": \"Naman Anand4\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/auth/register",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"auth",
+						"register"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "{{BASE_URL}}/auth/login",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"email\": \"naman.com\",\n  \"password\": \"test@123\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/auth/login",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"auth",
+						"login"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "{{BASE_URL}}/users/1",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/users/1",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"users",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "{{BASE_URL}}/users/me",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Response status code is 200\", function () {",
+							"    pm.expect(pm.response.code).to.equal(200);",
+							"});",
+							"",
+							"",
+							"pm.test(\"Response Content-Type is application/json\", function () {",
+							"    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+							"});",
+							"",
+							"",
+							"pm.test(\"Validate the user object structure\", function () {",
+							"    const responseData = pm.response.json();",
+							"",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.user).to.be.an('object').that.includes.keys('created_at', 'email', 'full_name', 'id', 'is_active', 'phone', 'updated_at', 'username', 'wallet_balance');",
+							"",
+							"    pm.expect(responseData.user.created_at).to.be.a('string');",
+							"    pm.expect(responseData.user.email).to.be.a('string').that.match(/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/); // Valid email format",
+							"    pm.expect(responseData.user.full_name).to.be.a('string');",
+							"    pm.expect(responseData.user.id).to.be.a('number');",
+							"    pm.expect(responseData.user.is_active).to.be.a('boolean');",
+							"    pm.expect(responseData.user.phone).to.be.a('string');",
+							"    pm.expect(responseData.user.updated_at).to.be.a('string');",
+							"    pm.expect(responseData.user.username).to.be.a('string');",
+							"    pm.expect(responseData.user.wallet_balance).to.be.a('string');",
+							"});",
+							"",
+							"",
+							"pm.test(\"Email is in a valid format\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.user).to.exist.and.to.be.an('object');",
+							"    ",
+							"    const email = responseData.user.email;",
+							"    const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;",
+							"    ",
+							"    pm.expect(email).to.match(emailRegex, \"Email format is invalid\");",
+							"});",
+							"",
+							"",
+							"pm.test(\"Wallet balance must be a valid number\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.user).to.exist.and.to.be.an('object');",
+							"    pm.expect(responseData.user.wallet_balance).to.exist;",
+							"    pm.expect(Number(responseData.user.wallet_balance)).to.be.a('number');",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/users/me",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"users",
+						"me"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "{{BASE_URL}}/wallet/deposit",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Response status code is 200\", function () {",
+							"    pm.expect(pm.response.code).to.equal(200);",
+							"});",
+							"",
+							"",
+							"pm.test(\"Response has the required fields\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.data).to.be.an('object').that.includes.all.keys('amount', 'balance_after', 'balance_before', 'reference_id');",
+							"});",
+							"",
+							"",
+							"pm.test(\"Amount is a non-negative number\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.data).to.exist.and.to.be.an('object');",
+							"    pm.expect(responseData.data.amount).to.be.a('number').and.to.be.at.least(0, \"Amount should be non-negative\");",
+							"});",
+							"",
+							"",
+							"pm.test(\"Balance values must be non-negative numbers\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.data).to.exist.and.to.be.an('object');",
+							"    ",
+							"    const balanceBefore = responseData.data.balance_before;",
+							"    const balanceAfter = responseData.data.balance_after;",
+							"",
+							"    pm.expect(balanceBefore).to.be.a('number').and.to.be.at.least(0, \"Balance before must be non-negative\");",
+							"    pm.expect(balanceAfter).to.be.a('number').and.to.be.at.least(0, \"Balance after must be non-negative\");",
+							"});",
+							"",
+							"",
+							"pm.test(\"Message and status should be non-empty strings\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.message).to.exist.and.to.be.a('string').and.to.have.lengthOf.at.least(1, \"Message should not be empty\");",
+							"    pm.expect(responseData.status).to.exist.and.to.be.a('string').and.to.have.lengthOf.at.least(1, \"Status should not be empty\");",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{ADMIN_TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"amount\" : 10000\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/wallet/deposit",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"wallet",
+						"deposit"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "{{BASE_URL}}/wallet/withdraw",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Response status code is 200\", function () {",
+							"    pm.expect(pm.response.code).to.equal(200);",
+							"});",
+							"",
+							"",
+							"pm.test(\"Response has the required fields\", function () {",
+							"    const responseData = pm.response.json().data;",
+							"",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData).to.have.all.keys('amount', 'balance_after', 'balance_before', 'reference_id');",
+							"});",
+							"",
+							"",
+							"pm.test(\"Amount is a non-negative number\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.data).to.exist.and.to.be.an('object');",
+							"    pm.expect(responseData.data.amount).to.be.a('number').and.to.be.at.least(0, \"Amount should be non-negative\");",
+							"});",
+							"",
+							"",
+							"pm.test(\"Balance_after and Balance_before must be greater than or equal to zero\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.data).to.exist.and.to.be.an('object');",
+							"    ",
+							"    pm.expect(responseData.data.balance_after).to.exist.and.to.be.at.least(0, \"Balance_after should be greater than or equal to zero\");",
+							"    pm.expect(responseData.data.balance_before).to.exist.and.to.be.at.least(0, \"Balance_before should be greater than or equal to zero\");",
+							"});",
+							"",
+							"",
+							"pm.test(\"Reference_id must be a non-empty string\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.data).to.exist;",
+							"    pm.expect(responseData.data.reference_id).to.exist.and.to.be.a('string').and.to.have.lengthOf.at.least(1, \"Reference_id should not be empty\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"amount\" : 50\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/wallet/withdraw",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"wallet",
+						"withdraw"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "{{BASE_URL}}/wallet/transactions?page=1&limit=10",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Response status code is 200\", function () {",
+							"    pm.expect(pm.response.code).to.eql(200);",
+							"});",
+							"",
+							"",
+							"pm.test(\"Response has the required fields in the data array\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.data).to.be.an('array').that.is.not.empty;",
+							"",
+							"    responseData.data.forEach(item => {",
+							"        pm.expect(item).to.have.all.keys('amount', 'balance_after', 'balance_before', 'created_at', 'id', 'reference_id', 'status', 'type', 'user_id');",
+							"        pm.expect(item.amount).to.be.a('number');",
+							"        pm.expect(item.balance_after).to.be.a('number');",
+							"        pm.expect(item.balance_before).to.be.a('number');",
+							"        pm.expect(item.created_at).to.be.a('string');",
+							"        pm.expect(item.id).to.be.a('number');",
+							"        pm.expect(item.reference_id).to.be.a('string');",
+							"        pm.expect(item.status).to.be.a('string');",
+							"        pm.expect(item.type).to.be.a('string');",
+							"        pm.expect(item.user_id).to.be.a('number');",
+							"    });",
+							"});",
+							"",
+							"",
+							"pm.test(\"Amount is a non-negative number\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    responseData.data.forEach(item => {",
+							"        pm.expect(item.amount).to.be.a('number').and.to.be.at.least(0, \"Amount should be a non-negative number\");",
+							"    });",
+							"});",
+							"",
+							"",
+							"pm.test(\"Created_at is in a valid date format\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    responseData.data.forEach(transaction => {",
+							"        pm.expect(transaction.created_at).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2})?$/, \"Created_at should be in ISO 8601 format\");",
+							"    });",
+							"});",
+							"",
+							"",
+							"pm.test(\"Pagination object contains valid current_page and total_items values\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.pagination).to.exist.and.to.be.an('object');",
+							"    ",
+							"    pm.expect(responseData.pagination.current_page).to.exist.and.to.be.a('number').that.is.at.least(0);",
+							"    pm.expect(responseData.pagination.total_items).to.exist.and.to.be.a('number').that.is.at.least(0);",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"amount\" : 50\n}"
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/wallet/transactions?page=1&limit=10",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"wallet",
+						"transactions"
+					],
+					"query": [
+						{
+							"key": "page",
+							"value": "1"
+						},
+						{
+							"key": "limit",
+							"value": "10"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "{{BASE_URL}}/events/create",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Response status code is 201\", function () {",
+							"    pm.expect(pm.response.code).to.equal(201);",
+							"});",
+							"",
+							"",
+							"pm.test(\"Response has the required fields in the event object\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.event).to.exist.and.to.be.an('object');",
+							"    ",
+							"    const requiredFields = ['category', 'created_at', 'created_by', 'description', 'end_time', 'id', 'image_url', 'max_bet_amount', 'min_bet_amount', 'options', 'resolution_note', 'resolved_at', 'resolved_by', 'status', 'title', 'total_volume', 'updated_at', 'winning_option_id'];",
+							"    ",
+							"    requiredFields.forEach(field => {",
+							"        pm.expect(responseData.event).to.have.property(field);",
+							"    });",
+							"});",
+							"",
+							"",
+							"pm.test(\"Created_at and updated_at should be in a valid date format\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    ",
+							"    const datePattern = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{3})?Z$/; // ISO 8601 format",
+							"",
+							"    pm.expect(responseData.event.created_at).to.match(datePattern, \"Created_at is not in a valid date format\");",
+							"    pm.expect(responseData.event.updated_at).to.match(datePattern, \"Updated_at is not in a valid date format\");",
+							"});",
+							"",
+							"",
+							"pm.test(\"Max bet amount and min bet amount must be non-negative numbers\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    ",
+							"    const event = responseData.event;",
+							"    ",
+							"    pm.expect(event.max_bet_amount).to.exist.and.to.be.a('number').and.to.be.at.least(0, \"Max bet amount should be a non-negative number\");",
+							"    pm.expect(event.min_bet_amount).to.exist.and.to.be.a('number').and.to.be.at.least(0, \"Min bet amount should be a non-negative number\");",
+							"});",
+							"",
+							"",
+							"pm.test(\"Options array is present and can contain multiple elements\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.event).to.have.property('options').that.is.an('array');",
+							"    pm.expect(responseData.event.options).to.have.length.of.at.least(0, \"Options array can contain multiple elements, including zero\");",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"title\": \"Test Price Prediction: Will BTC reach $100K by December 2024?\",\n  \"description\": \"A betting event to predict whether Bitcoin will reach $100,000 USD by December 31, 2024. The event will be resolved based on the closing price on major exchanges like Binance and Coinbase.\",\n  \"category\": \"cryptocurrency\",\n  \"end_time\": \"2025-12-31T23:59:59Z\",\n  \"min_bet_amount\": 5.00,\n  \"max_bet_amount\": 500.00,\n  \"image_url\": \"https://example.com/images/bitcoin-prediction.jpg\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/events/create",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"events",
+						"create"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "{{BASE_URL}}/events/4",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/events/4",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"events",
+						"4"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "{{BASE_URL}}/events/1",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "PUT",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"title\" : \"updated\",\n    \"status\" : \"active\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/events/24",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"events",
+						"24"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "{{BASE_URL}}/events?page=1&limit=10",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Response status code is 200\", function () {",
+							"    pm.expect(pm.response.code).to.equal(200);",
+							"});",
+							"",
+							"",
+							"pm.test(\"Response contains a valid Content-Type header\", function () {",
+							"    pm.expect(pm.response.headers.get('Content-Type')).to.include(\"application/json\");",
+							"});",
+							"",
+							"",
+							"pm.test(\"Validate the structure of the data array\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.data).to.be.an('array').that.is.not.empty;",
+							"",
+							"    responseData.data.forEach(item => {",
+							"        pm.expect(item).to.be.an('object');",
+							"        pm.expect(item).to.have.all.keys('category', 'created_at', 'created_by', 'description', 'end_time', 'id', 'image_url', 'max_bet_amount', 'min_bet_amount', 'options', 'resolution_note', 'resolved_at', 'resolved_by', 'status', 'title', 'total_volume', 'updated_at', 'winning_option_id');",
+							"        ",
+							"        pm.expect(item.category).to.be.a('string');",
+							"        pm.expect(item.created_at).to.be.a('string');",
+							"        pm.expect(item.created_by).to.be.a('number');",
+							"        pm.expect(item.description).to.be.a('string');",
+							"        pm.expect(item.end_time).to.be.a('string');",
+							"        pm.expect(item.id).to.be.a('number');",
+							"        pm.expect(item.image_url).to.be.a('string');",
+							"        pm.expect(item.max_bet_amount).to.be.a('string');",
+							"        pm.expect(item.min_bet_amount).to.be.a('string');",
+							"        pm.expect(item.options).to.be.an('array');",
+							"        pm.expect(item.resolution_note).to.be.a('string');",
+							"        pm.expect(item.resolved_at).to.be.a('string');",
+							"        pm.expect(item.resolved_by).to.be.a('number');",
+							"        pm.expect(item.status).to.be.a('string');",
+							"        pm.expect(item.title).to.be.a('string');",
+							"        pm.expect(item.total_volume).to.be.a('string');",
+							"        pm.expect(item.updated_at).to.be.a('string');",
+							"        pm.expect(item.winning_option_id).to.satisfy(value => value === null || typeof value === 'number');",
+							"    });",
+							"});",
+							"",
+							"",
+							"pm.test(\"Created_at and Updated_at are in valid date formats\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    ",
+							"    responseData.data.forEach(event => {",
+							"        pm.expect(event.created_at).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/, \"Created_at should be in ISO 8601 format\");",
+							"        pm.expect(event.updated_at).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/, \"Updated_at should be in ISO 8601 format\");",
+							"    });",
+							"});",
+							"",
+							"",
+							"pm.test(\"Status is one of the expected values\", function () {",
+							"    const responseData = pm.response.json();",
+							"    const expectedStatuses = [\"active\", \"inactive\"];",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.status).to.be.oneOf(expectedStatuses);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/events?page=1&limit=10",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"events"
+					],
+					"query": [
+						{
+							"key": "page",
+							"value": "1"
+						},
+						{
+							"key": "limit",
+							"value": "10"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "{{BASE_URL}}/event-options/create",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"event_id\": 33,\n  \"option_text\": \"Yes\",\n  \"current_price\": 5.00,\n  \"seed_liquidity\": true,\n  \"liquidity_config\": {\n    \"spread_percentage\": 0.02,\n    \"depth_levels\": 5,\n    \"level_quantity\": 100,\n    \"price_step\": 0.2\n  }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/event-options/create",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"event-options",
+						"create"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "{{BASE_URL}}/event-options/events/4/options",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Response status code is 200\", function () {",
+							"    pm.expect(pm.response.code).to.equal(200);",
+							"});",
+							"",
+							"",
+							"pm.test(\"Response contains required fields in the data array\", function () {",
+							"    const responseData = pm.response.json();",
+							"",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.data).to.be.an('array').that.is.not.empty;",
+							"",
+							"    responseData.data.forEach(option => {",
+							"        pm.expect(option).to.include.keys('current_price', 'event_id', 'id', 'is_winning_option', 'option_text', 'total_backing');",
+							"        pm.expect(option.current_price).to.be.a('string');",
+							"        pm.expect(option.event_id).to.be.a('number');",
+							"        pm.expect(option.id).to.be.a('number');",
+							"        pm.expect(option.is_winning_option).to.satisfy(value => value === null || typeof value === 'boolean');",
+							"        pm.expect(option.option_text).to.be.a('string');",
+							"        pm.expect(option.total_backing).to.be.a('string');",
+							"    });",
+							"});",
+							"",
+							"",
+							"pm.test(\"Current price must be a non-empty string\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    responseData.data.forEach(option => {",
+							"        pm.expect(option.current_price).to.exist.and.to.be.a('string').and.to.have.lengthOf.at.least(1, \"Current price should not be empty\");",
+							"    });",
+							"});",
+							"",
+							"",
+							"pm.test(\"event_id and id must be non-negative integers\", function () {",
+							"    const responseData = pm.response.json();",
+							"    ",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    ",
+							"    responseData.data.forEach(option => {",
+							"        pm.expect(option.event_id).to.be.a('number').and.to.be.at.least(0, \"event_id should be a non-negative integer\");",
+							"        pm.expect(option.id).to.be.a('number').and.to.be.at.least(0, \"id should be a non-negative integer\");",
+							"    });",
+							"});",
+							"",
+							"",
+							"pm.test(\"Pagination object contains valid values\", function () {",
+							"    const responseData = pm.response.json();",
+							"",
+							"    pm.expect(responseData).to.be.an('object');",
+							"    pm.expect(responseData.pagination).to.exist.and.to.be.an('object');",
+							"",
+							"    const pagination = responseData.pagination;",
+							"",
+							"    pm.expect(pagination.current_page).to.be.a('number').that.is.at.least(0);",
+							"    pm.expect(pagination.items_per_page).to.be.a('number').that.is.at.least(0);",
+							"    pm.expect(pagination.total_items).to.be.a('number').that.is.at.least(0);",
+							"    pm.expect(pagination.total_pages).to.be.a('number').that.is.at.least(0);",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/events/4/options?page=1&limit=10",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"events",
+						"4",
+						"options"
+					],
+					"query": [
+						{
+							"key": "page",
+							"value": "1"
+						},
+						{
+							"key": "limit",
+							"value": "10"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/order-book/orders",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{USER_2_TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"event_id\": 34,\n    \"side\": \"Buy\",\n    \"order_type\": \"Limit\",\n    \"price\": 5.0500,\n    \"option_id\": 1449,\n    \"quantity\": 1\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/order-book/orders",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"order-book",
+						"orders"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/order-book/events/{event_id}/options/{option_id}/depth",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/order-book/events/4/options/1/depth",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"order-book",
+						"events",
+						"4",
+						"options",
+						"1",
+						"depth"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/order-book/events/{event_id}/options/{option_id}",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/order-book/events/4/options/1",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"order-book",
+						"events",
+						"4",
+						"options",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/positions/my",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var template = `",
+							"<style type=\"text/css\">",
+							"    .tftable {font-size:14px;color:#333333;width:100%;border-width: 1px;border-color: #87ceeb;border-collapse: collapse;}",
+							"    .tftable th {font-size:18px;background-color:#87ceeb;border-width: 1px;padding: 8px;border-style: solid;border-color: #87ceeb;text-align:left;}",
+							"    .tftable tr {background-color:#ffffff;}",
+							"    .tftable td {font-size:14px;border-width: 1px;padding: 8px;border-style: solid;border-color: #87ceeb;}",
+							"    .tftable tr:hover {background-color:#e0ffff;}",
+							"</style>",
+							"",
+							"<table class=\"tftable\" border=\"1\">",
+							"    <tr>",
+							"        <th>Average Price</th>",
+							"        <th>Event ID</th>",
+							"        <th>Option ID</th>",
+							"        <th>Quantity</th>",
+							"        <th>User ID</th>",
+							"    </tr>",
+							"    ",
+							"    {{#each response.positions}}",
+							"        <tr>",
+							"            <td>{{average_price}}</td>",
+							"            <td>{{event_id}}</td>",
+							"            <td>{{option_id}}</td>",
+							"            <td>{{quantity}}</td>",
+							"            <td>{{user_id}}</td>",
+							"        </tr>",
+							"    {{/each}}",
+							"</table>",
+							"`;",
+							"",
+							"function constructVisualizerPayload() {",
+							"    return { response: pm.response.json() };",
+							"}",
+							"",
+							"pm.visualizer.set(template, constructVisualizerPayload());"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/positions/my",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"positions",
+						"my"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/positions/{event_id}/{option_id}",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/positions/4/1",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"positions",
+						"4",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "{{BASE_URL}}/portfolio",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/portfolio",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"portfolio"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "{{BASE_URL}}/portfolio/summary",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{USER_2_TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/portfolio/summary",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"portfolio",
+						"summary"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/api/events/{event_id}/settle",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{TOKEN}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"winning_option_id\": 6,\n    \"resolution_note\": \"Option A was the correct answer\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/events/4/settle",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"events",
+						"4",
+						"settle"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{TOKEN}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}
