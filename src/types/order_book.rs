@@ -88,6 +88,7 @@ pub struct MarketDepthResponse {
     pub total_ask_volume: i32,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MyOrdersQuery {
     pub status: Option<OrderStatus>,
@@ -95,6 +96,7 @@ pub struct MyOrdersQuery {
     pub pagination: PaginationQuery,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OrderHistoryQuery {
     pub event_id: Option<i32>,

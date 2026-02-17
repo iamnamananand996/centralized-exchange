@@ -60,7 +60,7 @@ impl RedisOrderBookPersistence {
 
         // Save buy orders (price -> list of orders)
         for (price, orders) in buy_orders {
-            let price_key = format!("{}:{}", buy_orders_key, price.to_string());
+            let price_key = format!("{}:{}", buy_orders_key, price);
             let serialized_orders = serde_json::to_string(&orders)
                 .map_err(|e| format!("Failed to serialize buy orders: {}", e))?;
             let _: () = conn
@@ -71,7 +71,7 @@ impl RedisOrderBookPersistence {
 
         // Save sell orders (price -> list of orders)
         for (price, orders) in sell_orders {
-            let price_key = format!("{}:{}", sell_orders_key, price.to_string());
+            let price_key = format!("{}:{}", sell_orders_key, price);
             let serialized_orders = serde_json::to_string(&orders)
                 .map_err(|e| format!("Failed to serialize sell orders: {}", e))?;
             let _: () = conn
@@ -162,7 +162,7 @@ impl RedisOrderBookPersistence {
         for price_key in buy_price_keys {
             let price_str = price_key
                 .split(':')
-                .last()
+                .next_back()
                 .ok_or("Invalid price key format")?;
             let price = price_str
                 .parse::<Decimal>()
@@ -191,7 +191,7 @@ impl RedisOrderBookPersistence {
         for price_key in sell_price_keys {
             let price_str = price_key
                 .split(':')
-                .last()
+                .next_back()
                 .ok_or("Invalid price key format")?;
             let price = price_str
                 .parse::<Decimal>()
@@ -237,6 +237,7 @@ impl RedisOrderBookPersistence {
     }
 
     /// Save an order book to Redis
+    #[allow(dead_code)]
     pub async fn save_order_book(
         &self,
         event_id: i32,
@@ -257,7 +258,7 @@ impl RedisOrderBookPersistence {
             .map_err(|e| format!("Failed to serialize order book: {}", e))?;
 
         // Save with expiration (1 hour)
-        conn.set_ex(&key, serialized, 3600)
+        conn.set_ex::<_, _, ()>(&key, serialized, 3600)
             .await
             .map_err(|e| format!("Failed to save order book to Redis: {}", e))?;
 
@@ -265,6 +266,7 @@ impl RedisOrderBookPersistence {
     }
 
     /// Load an order book from Redis
+    #[allow(dead_code)]
     pub async fn load_order_book(
         &self,
         event_id: i32,
@@ -284,7 +286,7 @@ impl RedisOrderBookPersistence {
             .map_err(|e| format!("Failed to load order book from Redis: {}", e))?;
 
         match data {
-            Some(serialized) => {
+            Some(_serialized) => {
                 // For now, we can't fully reconstruct the order book from a snapshot
                 // This would require storing individual orders
                 // Return None to indicate we should create a new order book
@@ -307,20 +309,20 @@ impl RedisOrderBookPersistence {
         let serialized = serde_json::to_string(order)
             .map_err(|e| format!("Failed to serialize order: {}", e))?;
 
-        conn.set_ex(&order_key, serialized, 86400) // 24 hours
+        conn.set_ex::<_, _, ()>(&order_key, serialized, 86400) // 24 hours
             .await
             .map_err(|e| format!("Failed to save order to Redis: {}", e))?;
 
         // Add to user's order list
         let user_orders_key = format!("user:{}:orders", order.user_id);
-        conn.sadd(&user_orders_key, &order.id)
+        conn.sadd::<_, _, ()>(&user_orders_key, &order.id)
             .await
             .map_err(|e| format!("Failed to add order to user list: {}", e))?;
 
         // Add to event-option order list
         let event_orders_key =
             format!("event:{}:option:{}:orders", order.event_id, order.option_id);
-        conn.sadd(&event_orders_key, &order.id)
+        conn.sadd::<_, _, ()>(&event_orders_key, &order.id)
             .await
             .map_err(|e| format!("Failed to add order to event list: {}", e))?;
 
@@ -358,7 +360,7 @@ impl RedisOrderBookPersistence {
         status: OrderStatus,
         filled_quantity: i32,
     ) -> Result<(), String> {
-        let mut conn = self
+        let _conn = self
             .pool
             .get()
             .await
@@ -390,7 +392,7 @@ impl RedisOrderBookPersistence {
         let serialized = serde_json::to_string(trade)
             .map_err(|e| format!("Failed to serialize trade: {}", e))?;
 
-        conn.set_ex(&trade_key, serialized, 2592000) // 30 days
+        conn.set_ex::<_, _, ()>(&trade_key, serialized, 2592000) // 30 days
             .await
             .map_err(|e| format!("Failed to save trade to Redis: {}", e))?;
 
@@ -399,7 +401,7 @@ impl RedisOrderBookPersistence {
             format!("event:{}:option:{}:trades", trade.event_id, trade.option_id);
         let score = trade.timestamp.timestamp_millis() as f64;
 
-        conn.zadd(&event_trades_key, &trade.id, score)
+        conn.zadd::<_, _, _, ()>(&event_trades_key, &trade.id, score)
             .await
             .map_err(|e| format!("Failed to add trade to sorted set: {}", e))?;
 
@@ -407,11 +409,11 @@ impl RedisOrderBookPersistence {
         let buyer_trades_key = format!("user:{}:trades", trade.buyer_id);
         let seller_trades_key = format!("user:{}:trades", trade.seller_id);
 
-        conn.zadd(&buyer_trades_key, &trade.id, score)
+        conn.zadd::<_, _, _, ()>(&buyer_trades_key, &trade.id, score)
             .await
             .map_err(|e| format!("Failed to add trade to buyer list: {}", e))?;
 
-        conn.zadd(&seller_trades_key, &trade.id, score)
+        conn.zadd::<_, _, _, ()>(&seller_trades_key, &trade.id, score)
             .await
             .map_err(|e| format!("Failed to add trade to seller list: {}", e))?;
 
@@ -419,6 +421,7 @@ impl RedisOrderBookPersistence {
     }
 
     /// Get recent trades for an event option
+    #[allow(dead_code)]
     pub async fn get_recent_trades(
         &self,
         event_id: i32,
@@ -450,6 +453,7 @@ impl RedisOrderBookPersistence {
     }
 
     /// Load a trade from Redis
+    #[allow(dead_code)]
     async fn load_trade(&self, trade_id: &str) -> Result<Option<Trade>, String> {
         let mut conn = self
             .pool
@@ -474,6 +478,7 @@ impl RedisOrderBookPersistence {
     }
 
     /// Get user's active orders
+    #[allow(dead_code)]
     pub async fn get_user_orders(
         &self,
         user_id: i32,
@@ -511,6 +516,7 @@ impl RedisOrderBookPersistence {
     }
 
     /// Clean up expired data
+    #[allow(dead_code)]
     pub async fn cleanup_expired_data(&self) -> Result<(), String> {
         // Redis handles expiration automatically for keys with TTL
         // This method could be used for additional cleanup if needed

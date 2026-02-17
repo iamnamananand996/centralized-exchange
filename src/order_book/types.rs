@@ -15,6 +15,7 @@ pub enum OrderType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum TimeInForce {
     GTC, // Good Till Cancelled (default)
     IOC, // Immediate Or Cancel
@@ -100,6 +101,7 @@ pub struct UserPosition {
 }
 
 impl Order {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         user_id: i32,
         event_id: i32,

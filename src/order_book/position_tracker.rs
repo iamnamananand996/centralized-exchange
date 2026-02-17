@@ -212,7 +212,7 @@ impl PositionTracker {
         for position in positions {
             grouped
                 .entry(position.event_id)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(position);
         }
 

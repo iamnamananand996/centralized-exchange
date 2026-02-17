@@ -107,7 +107,7 @@ pub async fn update_option_prices(
 
     // Broadcast updates for all affected events
     if !events_to_broadcast.is_empty() {
-        let handlers = crate::websocket::handlers::WebSocketHandlers::new(
+        let _handlers = crate::websocket::handlers::WebSocketHandlers::new(
             db.clone(),
             ws_server.get_ref().clone(),
         );

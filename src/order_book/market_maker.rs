@@ -4,7 +4,7 @@ use super::{
 };
 use deadpool_redis::Pool;
 use entity::user_positions;
-use sea_orm::{prelude::Decimal, DatabaseConnection, TransactionTrait};
+use sea_orm::{prelude::Decimal, DatabaseConnection};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::error::Error;
 

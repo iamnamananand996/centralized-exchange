@@ -1,5 +1,4 @@
 use crate::order_book::position_tracker::PositionTracker;
-use crate::order_book::types::UserPosition;
 use crate::utils::cache::CacheService;
 use actix_web::{web, Error, HttpResponse, Result};
 use deadpool_redis::Pool;
@@ -9,7 +8,6 @@ use sea_orm::DatabaseConnection;
 use sea_orm::EntityTrait;
 use serde::Serialize;
 use serde_json::json;
-use std::collections::HashMap;
 
 #[derive(Serialize)]
 pub struct PortfolioResponse {
@@ -82,7 +80,7 @@ pub async fn get_portfolio(
     let position_tracker = PositionTracker::new(db.get_ref().clone());
 
     // Get all user positions
-    let positions = position_tracker
+    let _positions = position_tracker
         .get_user_positions(user_id_int)
         .await
         .map_err(|e| {
@@ -236,7 +234,7 @@ pub async fn get_portfolio_summary(
     let mut current_value = Decimal::new(0, 2);
 
     // Calculate totals
-    for (event_id, event_positions) in &grouped_positions {
+    for event_positions in grouped_positions.values() {
         for position in event_positions {
             // Get option details for current price
             let option = event_options::Entity::find_by_id(position.option_id)

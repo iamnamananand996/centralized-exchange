@@ -13,6 +13,7 @@ impl Message for PreSerializedMessage {
 
 #[derive(Serialize)]
 #[serde(tag = "type")]
+#[allow(clippy::large_enum_variant)]
 pub enum WebSocketMessage {
     #[serde(rename = "events_data")]
     EventsData {
@@ -34,6 +35,7 @@ pub enum WebSocketMessage {
         data: serde_json::Value, // Will be replaced with position-based portfolio
         timestamp: DateTime<Utc>,
     },
+    #[allow(dead_code)]
     #[serde(rename = "subscribe")]
     Subscribe {
         channel: String,
@@ -41,10 +43,12 @@ pub enum WebSocketMessage {
     },
     #[serde(rename = "unsubscribe")]
     Unsubscribe { channel: String },
+    #[allow(dead_code)]
     #[serde(rename = "ping")]
     Ping { timestamp: DateTime<Utc> },
     #[serde(rename = "pong")]
     Pong { timestamp: DateTime<Utc> },
+    #[allow(dead_code)]
     #[serde(rename = "error")]
     Error {
         message: String,
@@ -110,8 +114,7 @@ impl SubscriptionChannel {
             "transactions" => Some(SubscriptionChannel::Transactions),
             "portfolio" => Some(SubscriptionChannel::Portfolio),
             _ => {
-                if s.starts_with("event:") {
-                    let id_str = &s[6..];
+                if let Some(id_str) = s.strip_prefix("event:") {
                     id_str.parse::<i32>().ok().map(SubscriptionChannel::Event)
                 } else {
                     None

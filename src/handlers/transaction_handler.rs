@@ -7,7 +7,6 @@ use actix_web::{web, Error, HttpResponse, Result};
 use deadpool_redis::Pool;
 use entity::{transaction, users};
 use rust_decimal::Decimal as RustDecimal;
-use sea_orm::prelude::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, Set, TransactionTrait,
@@ -77,7 +76,7 @@ pub async fn deposit_money(
     // Update user balance
     let mut user_active_model: users::ActiveModel = user.into();
     user_active_model.wallet_balance =
-        Set(Decimal::from(RustDecimal::try_from(balance_after).unwrap()));
+        Set(RustDecimal::try_from(balance_after).unwrap());
     user_active_model.updated_at = Set(chrono::Utc::now().naive_utc());
 
     let _updated_user = user_active_model.update(&txn).await.map_err(|e| {
@@ -90,11 +89,9 @@ pub async fn deposit_money(
     let transaction = transaction::ActiveModel {
         user_id: Set(user_id),
         r#type: Set("deposit".to_string()),
-        amount: Set(Decimal::from(RustDecimal::try_from(amount).unwrap())),
-        balance_before: Set(Decimal::from(
-            RustDecimal::try_from(balance_before).unwrap(),
-        )),
-        balance_after: Set(Decimal::from(RustDecimal::try_from(balance_after).unwrap())),
+        amount: Set(RustDecimal::try_from(amount).unwrap()),
+        balance_before: Set(RustDecimal::try_from(balance_before).unwrap()),
+        balance_after: Set(RustDecimal::try_from(balance_after).unwrap()),
         status: Set("completed".to_string()),
         reference_id: Set(reference_id.clone()),
         created_at: Set(chrono::Utc::now().naive_utc()),
@@ -223,7 +220,7 @@ pub async fn withdraw_money(
     // Update user balance
     let mut user_active_model: users::ActiveModel = user.into();
     user_active_model.wallet_balance =
-        Set(Decimal::from(RustDecimal::try_from(balance_after).unwrap()));
+        Set(RustDecimal::try_from(balance_after).unwrap());
     user_active_model.updated_at = Set(chrono::Utc::now().naive_utc());
 
     let _updated_user = user_active_model.update(&txn).await.map_err(|e| {
@@ -236,11 +233,9 @@ pub async fn withdraw_money(
     let transaction = transaction::ActiveModel {
         user_id: Set(user_id),
         r#type: Set("withdraw".to_string()),
-        amount: Set(Decimal::from(RustDecimal::try_from(amount).unwrap())),
-        balance_before: Set(Decimal::from(
-            RustDecimal::try_from(balance_before).unwrap(),
-        )),
-        balance_after: Set(Decimal::from(RustDecimal::try_from(balance_after).unwrap())),
+        amount: Set(RustDecimal::try_from(amount).unwrap()),
+        balance_before: Set(RustDecimal::try_from(balance_before).unwrap()),
+        balance_after: Set(RustDecimal::try_from(balance_after).unwrap()),
         status: Set("completed".to_string()),
         reference_id: Set(reference_id.clone()),
         created_at: Set(chrono::Utc::now().naive_utc()),

@@ -48,22 +48,19 @@ impl OrderBookEngine {
         }
 
         // For Fill-Or-Kill orders, check if we can fill the entire order
-        if order.time_in_force == TimeInForce::FOK {
-            if !self.can_fill_entire_order(&order) {
+        if order.time_in_force == TimeInForce::FOK
+            && !self.can_fill_entire_order(&order) {
                 order.reject();
                 return Ok(vec![]);
             }
-        }
-
-        let mut trades = Vec::new();
 
         // Market orders get the best available price
-        if order.order_type == OrderType::Market {
-            trades = self.execute_market_order(&mut order)?;
+        let trades = if order.order_type == OrderType::Market {
+            self.execute_market_order(&mut order)?
         } else {
             // Try to match limit orders immediately
-            trades = self.match_order(&mut order)?;
-        }
+            self.match_order(&mut order)?
+        };
 
         // Handle post-match logic based on time in force
         match order.time_in_force {
@@ -376,13 +373,13 @@ impl OrderBookEngine {
             OrderSide::Buy => {
                 self.buy_orders
                     .entry(price)
-                    .or_insert_with(VecDeque::new)
+                    .or_default()
                     .push_back(order.clone());
             }
             OrderSide::Sell => {
                 self.sell_orders
                     .entry(price)
-                    .or_insert_with(VecDeque::new)
+                    .or_default()
                     .push_back(order.clone());
             }
         }
@@ -467,6 +464,7 @@ impl OrderBookEngine {
     }
 
     /// Calculate volume-weighted average price (VWAP) for recent trades
+    #[allow(dead_code)]
     pub fn calculate_vwap(&self, trade_count: usize) -> Option<Decimal> {
         if self.trades.is_empty() {
             return None;
@@ -565,6 +563,7 @@ impl OrderBookEngine {
     }
 
     /// Get the internal state of the order book for persistence
+    #[allow(clippy::type_complexity)]
     pub fn get_internal_state(
         &self,
     ) -> (
@@ -590,13 +589,13 @@ impl OrderBookEngine {
             OrderSide::Buy => {
                 self.buy_orders
                     .entry(price)
-                    .or_insert_with(VecDeque::new)
+                    .or_default()
                     .push_back(order.clone());
             }
             OrderSide::Sell => {
                 self.sell_orders
                     .entry(price)
-                    .or_insert_with(VecDeque::new)
+                    .or_default()
                     .push_back(order.clone());
             }
         }

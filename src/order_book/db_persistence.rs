@@ -160,6 +160,7 @@ impl DbPersistence {
     }
 
     /// Get user's trades
+    #[allow(dead_code)]
     pub async fn get_user_trades(&self, user_id: i32, limit: u64) -> Result<Vec<Trade>, String> {
         let db_trades = trades::Entity::find()
             .filter(
@@ -192,6 +193,7 @@ impl DbPersistence {
     }
 
     /// Execute a batch of database operations in a transaction
+    #[allow(dead_code)]
     pub async fn execute_in_transaction<F, R>(&self, operations: F) -> Result<R, String>
     where
         F: FnOnce(
@@ -261,42 +263,42 @@ fn parse_order_status(s: &str) -> OrderStatus {
 }
 
 // Extension methods for enum to string conversion
-impl ToString for OrderSide {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for OrderSide {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OrderSide::Buy => "Buy".to_string(),
-            OrderSide::Sell => "Sell".to_string(),
+            OrderSide::Buy => write!(f, "Buy"),
+            OrderSide::Sell => write!(f, "Sell"),
         }
     }
 }
 
-impl ToString for OrderType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for OrderType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OrderType::Market => "Market".to_string(),
-            OrderType::Limit => "Limit".to_string(),
+            OrderType::Market => write!(f, "Market"),
+            OrderType::Limit => write!(f, "Limit"),
         }
     }
 }
 
-impl ToString for TimeInForce {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for TimeInForce {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TimeInForce::GTC => "GTC".to_string(),
-            TimeInForce::IOC => "IOC".to_string(),
-            TimeInForce::FOK => "FOK".to_string(),
+            TimeInForce::GTC => write!(f, "GTC"),
+            TimeInForce::IOC => write!(f, "IOC"),
+            TimeInForce::FOK => write!(f, "FOK"),
         }
     }
 }
 
-impl ToString for OrderStatus {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for OrderStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OrderStatus::Pending => "Pending".to_string(),
-            OrderStatus::PartiallyFilled => "PartiallyFilled".to_string(),
-            OrderStatus::Filled => "Filled".to_string(),
-            OrderStatus::Cancelled => "Cancelled".to_string(),
-            OrderStatus::Rejected => "Rejected".to_string(),
+            OrderStatus::Pending => write!(f, "Pending"),
+            OrderStatus::PartiallyFilled => write!(f, "PartiallyFilled"),
+            OrderStatus::Filled => write!(f, "Filled"),
+            OrderStatus::Cancelled => write!(f, "Cancelled"),
+            OrderStatus::Rejected => write!(f, "Rejected"),
         }
     }
 }

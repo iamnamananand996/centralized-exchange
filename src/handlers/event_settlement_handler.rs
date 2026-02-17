@@ -8,7 +8,6 @@ use actix_web::{web, Error, HttpResponse, Result};
 use chrono::Utc;
 use deadpool_redis::Pool;
 use entity::{event_options, events, transaction, user_positions, users};
-use rust_decimal::prelude::*;
 use sea_orm::{
     prelude::Decimal, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
     Set, TransactionTrait,

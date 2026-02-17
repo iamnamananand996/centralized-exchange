@@ -27,7 +27,7 @@ pub struct UpdateEventRequest {
     pub image_url: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 pub struct ListEventsQuery {
     pub status: Option<String>,
     pub category: Option<String>,

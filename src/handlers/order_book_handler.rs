@@ -711,8 +711,8 @@ pub async fn get_market_depth(
     let total_ask_volume: i32 = depth.iter().map(|d| d.sell_quantity).sum();
 
     let response = MarketDepthResponse {
-        event_id: event_id,
-        option_id: option_id,
+        event_id,
+        option_id,
         depth,
         total_bid_volume,
         total_ask_volume,
@@ -726,7 +726,7 @@ pub async fn get_market_depth(
 
 pub async fn get_user_orders(
     db: web::Data<DatabaseConnection>,
-    redis_pool: web::Data<Pool>,
+    _redis_pool: web::Data<Pool>,
     user_id: web::ReqData<String>,
 ) -> Result<HttpResponse, Error> {
     let user_id_str = &*user_id;
@@ -772,7 +772,7 @@ pub async fn get_user_orders(
 
 pub async fn get_trade_history(
     db: web::Data<DatabaseConnection>,
-    redis_pool: web::Data<Pool>,
+    _redis_pool: web::Data<Pool>,
     path: web::Path<(i32, i32)>,
 ) -> Result<HttpResponse, Error> {
     let (event_id, option_id) = path.into_inner();

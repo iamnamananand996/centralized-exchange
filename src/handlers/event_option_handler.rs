@@ -89,13 +89,11 @@ pub async fn create_event_option(
 
     // Seed initial liquidity if requested
     if req.seed_liquidity.unwrap_or(false) {
-        let mut config = MarketMakerConfig::default();
-
-        // Use the creating user as the market maker instead of system user
-        config.market_maker_user_id = creator_id;
-
-        // Use the option's current price as initial price
-        config.initial_price = option.current_price;
+        let mut config = MarketMakerConfig {
+            market_maker_user_id: creator_id,
+            initial_price: option.current_price,
+            ..Default::default()
+        };
 
         // Apply custom liquidity configuration if provided
         if let Some(liquidity_config) = &req.liquidity_config {
@@ -154,7 +152,7 @@ pub async fn create_event_option(
     // Invalidate relevant caches
     let cache_service = CacheService::new(redis_pool.get_ref().clone());
     let event_cache_key = create_cache_key(cache_keys::EVENT_PREFIX, &req.event_id.to_string());
-    let options_list_key = format!("event_options:{}:*", req.event_id);
+    let _options_list_key = format!("event_options:{}:*", req.event_id);
 
     if let Err(e) = cache_service.delete(&event_cache_key).await {
         log::warn!("Failed to invalidate event cache: {}", e);

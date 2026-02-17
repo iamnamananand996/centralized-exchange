@@ -47,6 +47,7 @@ impl CacheService {
     }
 
     /// Set a value in cache without expiration
+    #[allow(dead_code)]
     pub async fn set_persistent<T>(
         &self,
         key: &str,
@@ -69,6 +70,7 @@ impl CacheService {
     }
 
     /// Check if a key exists in cache
+    #[allow(dead_code)]
     pub async fn exists(
         &self,
         key: &str,
@@ -79,6 +81,7 @@ impl CacheService {
     }
 
     /// Set expiration for an existing key
+    #[allow(dead_code)]
     pub async fn expire(
         &self,
         key: &str,
@@ -90,6 +93,7 @@ impl CacheService {
     }
 
     /// Get TTL for a key
+    #[allow(dead_code)]
     pub async fn ttl(&self, key: &str) -> Result<i64, Box<dyn std::error::Error + Send + Sync>> {
         let mut conn = self.pool.get().await?;
         let ttl: i64 = conn.ttl(key).await?;
@@ -97,6 +101,7 @@ impl CacheService {
     }
 
     /// Increment a numeric value
+    #[allow(dead_code)]
     pub async fn increment(
         &self,
         key: &str,
@@ -108,6 +113,7 @@ impl CacheService {
     }
 
     /// Decrement a numeric value
+    #[allow(dead_code)]
     pub async fn decrement(
         &self,
         key: &str,
@@ -127,7 +133,9 @@ pub fn create_cache_key(prefix: &str, identifier: &str) -> String {
 /// Common cache key prefixes
 pub mod cache_keys {
     pub const USER_PREFIX: &str = "user";
+    #[allow(dead_code)]
     pub const SESSION_PREFIX: &str = "session";
     pub const EVENT_PREFIX: &str = "event";
+    #[allow(dead_code)]
     pub const TRANSACTION_PREFIX: &str = "transaction";
 }

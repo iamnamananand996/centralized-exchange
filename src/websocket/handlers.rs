@@ -394,7 +394,7 @@ impl WebSocketHandlers {
     pub async fn fetch_and_broadcast_portfolio(&self, user_id: i32) {
         // Import position tracker
         use crate::order_book::position_tracker::PositionTracker;
-        use std::collections::HashMap;
+        
 
         // Get user data
         let user = match users::Entity::find_by_id(user_id)
@@ -415,7 +415,7 @@ impl WebSocketHandlers {
         let position_tracker = PositionTracker::new(self.db.get_ref().clone());
 
         // Get all user positions
-        let positions = match position_tracker.get_user_positions(user_id).await {
+        let _positions = match position_tracker.get_user_positions(user_id).await {
             Ok(pos) => pos,
             Err(e) => {
                 error!("Failed to get user positions: {}", e);
@@ -434,7 +434,7 @@ impl WebSocketHandlers {
 
         let mut total_invested = Decimal::new(0, 2);
         let mut current_value = Decimal::new(0, 2);
-        let mut portfolio_data = serde_json::json!({
+        let _portfolio_data = serde_json::json!({
             "active_positions": []
         });
 
@@ -633,16 +633,6 @@ impl WebSocketHandlers {
     }
 }
 
-// Default implementations for query types
-impl Default for ListEventsQuery {
-    fn default() -> Self {
-        Self {
-            status: None,
-            category: None,
-            pagination: PaginationQuery::default(),
-        }
-    }
-}
 
 impl Default for PaginationQuery {
     fn default() -> Self {

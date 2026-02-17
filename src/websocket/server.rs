@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 use crate::types::websocket::{PreSerializedMessage, SubscriptionChannel, WebSocketMessage};
 
 /// WebSocket server manages all connections and subscriptions
+#[derive(Default)]
 pub struct WebSocketServer {
     /// Map of session id to session address
     sessions: HashMap<usize, Recipient<PreSerializedMessage>>,
@@ -26,19 +27,6 @@ pub struct WebSocketServer {
     redis_pool: Option<web::Data<Pool>>,
 }
 
-impl Default for WebSocketServer {
-    fn default() -> Self {
-        Self {
-            sessions: HashMap::new(),
-            user_sessions: HashMap::new(),
-            subscriptions: HashMap::new(),
-            subscription_params: HashMap::new(),
-            session_counter: 0,
-            db: None,
-            redis_pool: None,
-        }
-    }
-}
 
 impl WebSocketServer {
     pub fn with_handlers(db: web::Data<DatabaseConnection>, redis_pool: web::Data<Pool>) -> Self {
@@ -63,7 +51,7 @@ impl WebSocketServer {
                 for &session_id in session_ids {
                     if let Some(addr) = self.sessions.get(&session_id) {
                         // Send pre-serialized message
-                        let _ = addr.do_send(crate::types::websocket::PreSerializedMessage(
+                        addr.do_send(crate::types::websocket::PreSerializedMessage(
                             json_msg.clone(),
                         ));
                     }
@@ -82,7 +70,7 @@ impl WebSocketServer {
                 for &session_id in session_ids {
                     if let Some(addr) = self.sessions.get(&session_id) {
                         // Send pre-serialized message
-                        let _ = addr.do_send(crate::types::websocket::PreSerializedMessage(
+                        addr.do_send(crate::types::websocket::PreSerializedMessage(
                             json_msg.clone(),
                         ));
                     }
@@ -97,18 +85,19 @@ impl WebSocketServer {
             if let Ok(json_msg) = serde_json::to_string(
                 &crate::types::websocket::WebSocketResponse::success(message),
             ) {
-                let _ = addr.do_send(PreSerializedMessage(json_msg));
+                addr.do_send(PreSerializedMessage(json_msg));
             }
         }
     }
 
     /// Send message to all sessions
+    #[allow(dead_code)]
     pub fn send_to_all(&self, message: WebSocketMessage) {
         if let Ok(json_msg) = serde_json::to_string(
             &crate::types::websocket::WebSocketResponse::success(message),
         ) {
-            for (_, addr) in &self.sessions {
-                let _ = addr.do_send(crate::types::websocket::PreSerializedMessage(
+            for addr in self.sessions.values() {
+                addr.do_send(crate::types::websocket::PreSerializedMessage(
                     json_msg.clone(),
                 ));
             }
@@ -119,8 +108,6 @@ impl WebSocketServer {
 impl Actor for WebSocketServer {
     type Context = Context<Self>;
 }
-
-/// Message for WebSocket server communications
 
 /// New WebSocket session is created
 #[derive(Message)]
@@ -217,7 +204,7 @@ impl Handler<Connect> for WebSocketServer {
         if let Some(user_id) = msg.user_id {
             self.user_sessions
                 .entry(user_id)
-                .or_insert_with(HashSet::new)
+                .or_default()
                 .insert(session_id);
         }
 
@@ -266,7 +253,7 @@ impl Handler<Subscribe> for WebSocketServer {
         // Add session to channel subscription
         self.subscriptions
             .entry(msg.channel.clone())
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(msg.id);
 
         // Store subscription parameters if provided
@@ -393,7 +380,7 @@ impl Handler<BroadcastEventsUpdate> for WebSocketServer {
     fn handle(&mut self, _msg: BroadcastEventsUpdate, ctx: &mut Context<Self>) -> Self::Result {
         // Get all sessions subscribed to events channel
         if let Some(session_ids) = self.subscriptions.get(&SubscriptionChannel::Events) {
-            if let (Some(db), Some(redis_pool)) = (&self.db, &self.redis_pool) {
+            if let (Some(db), Some(_redis_pool)) = (&self.db, &self.redis_pool) {
                 for &session_id in session_ids {
                     // Get stored parameters for this session
                     let params = self
@@ -443,7 +430,7 @@ impl Handler<BroadcastTransactionsUpdate> for WebSocketServer {
                             .get(&(session_id, SubscriptionChannel::Transactions))
                             .cloned();
 
-                        if let (Some(db), Some(redis_pool)) = (&self.db, &self.redis_pool) {
+                        if let (Some(db), Some(_redis_pool)) = (&self.db, &self.redis_pool) {
                             let db_clone = db.clone();
                             let ws_server_addr = ctx.address();
                             let user_id = msg.user_id;
