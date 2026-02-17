@@ -48,11 +48,10 @@ impl OrderBookEngine {
         }
 
         // For Fill-Or-Kill orders, check if we can fill the entire order
-        if order.time_in_force == TimeInForce::FOK
-            && !self.can_fill_entire_order(&order) {
-                order.reject();
-                return Ok(vec![]);
-            }
+        if order.time_in_force == TimeInForce::FOK && !self.can_fill_entire_order(&order) {
+            order.reject();
+            return Ok(vec![]);
+        }
 
         // Market orders get the best available price
         let trades = if order.order_type == OrderType::Market {

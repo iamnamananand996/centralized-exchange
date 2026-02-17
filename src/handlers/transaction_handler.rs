@@ -75,8 +75,7 @@ pub async fn deposit_money(
 
     // Update user balance
     let mut user_active_model: users::ActiveModel = user.into();
-    user_active_model.wallet_balance =
-        Set(RustDecimal::try_from(balance_after).unwrap());
+    user_active_model.wallet_balance = Set(RustDecimal::try_from(balance_after).unwrap());
     user_active_model.updated_at = Set(chrono::Utc::now().naive_utc());
 
     let _updated_user = user_active_model.update(&txn).await.map_err(|e| {
@@ -219,8 +218,7 @@ pub async fn withdraw_money(
 
     // Update user balance
     let mut user_active_model: users::ActiveModel = user.into();
-    user_active_model.wallet_balance =
-        Set(RustDecimal::try_from(balance_after).unwrap());
+    user_active_model.wallet_balance = Set(RustDecimal::try_from(balance_after).unwrap());
     user_active_model.updated_at = Set(chrono::Utc::now().naive_utc());
 
     let _updated_user = user_active_model.update(&txn).await.map_err(|e| {

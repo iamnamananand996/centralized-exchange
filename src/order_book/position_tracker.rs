@@ -210,10 +210,7 @@ impl PositionTracker {
 
         let mut grouped: HashMap<i32, Vec<UserPosition>> = HashMap::new();
         for position in positions {
-            grouped
-                .entry(position.event_id)
-                .or_default()
-                .push(position);
+            grouped.entry(position.event_id).or_default().push(position);
         }
 
         Ok(grouped)

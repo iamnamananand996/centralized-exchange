@@ -27,7 +27,6 @@ pub struct WebSocketServer {
     redis_pool: Option<web::Data<Pool>>,
 }
 
-
 impl WebSocketServer {
     pub fn with_handlers(db: web::Data<DatabaseConnection>, redis_pool: web::Data<Pool>) -> Self {
         Self {

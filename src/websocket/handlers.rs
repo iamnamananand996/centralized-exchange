@@ -394,7 +394,6 @@ impl WebSocketHandlers {
     pub async fn fetch_and_broadcast_portfolio(&self, user_id: i32) {
         // Import position tracker
         use crate::order_book::position_tracker::PositionTracker;
-        
 
         // Get user data
         let user = match users::Entity::find_by_id(user_id)
@@ -632,7 +631,6 @@ impl WebSocketHandlers {
             });
     }
 }
-
 
 impl Default for PaginationQuery {
     fn default() -> Self {
